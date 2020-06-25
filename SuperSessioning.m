@@ -18,7 +18,7 @@ classdef SuperSessioning
     end
     methods
         % create a file structure for analysis
-        function obj = multiSort(BaseFolder,RawFolder)
+        function obj = SuperSessioning(BaseFolder,RawFolder)
             %assert that BaseFolder exists
             assert(isDir(BaseFolder),'Folder does not exist')
             if nargin >1
@@ -110,7 +110,7 @@ classdef SuperSessioning
             %obj.defaultMerge.plotFolder=[plotFolder filesep 'Plot_Merged'];
             %obj.defaultMerge.plotFolder=[plotFolder filesep 'Plot_Merged_cluster'];
         end
-        function obj = addRaw(obj,FileName,TimeStamp)
+        function [obj,Ind] = addRaw(obj,FileName,TimeStamp)
             %add the path, check whether exists
             assert(isfile([obj.RawFolder filesep FileName]),['File not found, should be in ' obj.RawFolder])
             %test whether in chronological order
@@ -122,7 +122,7 @@ classdef SuperSessioning
                 obj.locMaxFiles{obj.nRec,1}='';
                 obj.mergedList(obj.nRec,1)=0;
                 obj.Filter{obj.nRec,1}=obj.defaultFilter;
-                
+                Ind=obj.nRec;
             elseif any(obj.TimeStamps==TimeStamp)
                 %assume adding a Raw file to the structure later
                 Ind=find(obj.TimeStamps==TimeStamp);
@@ -141,8 +141,9 @@ classdef SuperSessioning
                  obj.FiltFiles=[{obj.FiltFiles(1:Ind,1)}; {}; {obj.FiltFiles(Ind+1:obj.nRec,1)}];
                  obj.locMaxFiles=[{obj.locMaxFiles(1:Ind,1)}; {}; {obj.locMaxFiles(Ind+1:obj.nRec,1)}];
                  obj.mergedList=[obj.mergedList(1:Ind,1); 0; obj.mergedList(Ind+1:obj.nRec,1)];
-                 obj.Filter{Ind,1}=[{obj.Filter(1:Ind,1)}; obj.defaultFilter; {obj.Filter(Ind+1:obj.nRec,1)}];
+                 obj.Filter=[{obj.Filter(1:Ind,1)}; obj.defaultFilter; {obj.Filter(Ind+1:obj.nRec,1)}];
                  obj.nRec=obj.nRec+1;
+                 Ind=Ind+1;
             end
         end
         %filter 60 Hz component
@@ -198,7 +199,7 @@ classdef SuperSessioning
             %mode of histogram -- problem: outliers?
         end
         %find local minima
-        function obj=bTM(obj,Ind)
+        function obj=blindTemplateMatching(obj,Ind)
             switch lower(obj.bTM{Ind}.origin)
                 case 'raw'
                     Origin=[obj.RawFolder filesep obj.RawFile{Ind}];
