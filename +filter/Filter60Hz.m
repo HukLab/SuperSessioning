@@ -71,7 +71,10 @@ function Filter = Filter60HzV16(RawFile, OutFile, Filter)
     sRate=median(sRate(ChMask,1));
     
     %Parameters
-    LenRec=Filter.tEnd-Filter.tStart+1;
+    Filter.LenRec=Filter.tEnd-Filter.tStart+1;
+    Filter.bitVolt=bitVolt;
+    Filter.sRate=sRate;
+    Filter.Nch=Nchx;
     
     npx=12;
     nx=double(round(sRate*npx/60));
@@ -191,7 +194,7 @@ function Filter = Filter60HzV16(RawFile, OutFile, Filter)
         fracInd1{i}=1-mod(((1:4*nBlkX)'-1)*(npx*nT)/(2*nx+i-deltaNh-1),1);
     end
     
-    numRec=floor((LenRec-nsx)/nBlkX)-1;%number of iterations
+    numRec=floor((Filter.LenRec-nsx)/nBlkX)-1;%number of iterations
     
     xRaw=zeros(nBlkX+2*nsx,nDelay+1,Nchx);%rolling
     xCum=zeros(nBlkX+1+2*nsx,1,Nchx);
@@ -614,7 +617,7 @@ function Filter = Filter60HzV16(RawFile, OutFile, Filter)
         sepFrame=circshift(sepFrame,-1,1);
     end
     %treat ending
-    xTmp=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,(numRec+1)*nBlkX+Filter.tStart],[Nch,LenRec-(numRec+1)*nBlkX])');
+    xTmp=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,(numRec+1)*nBlkX+Filter.tStart],[Nch,Filter.LenRec-(numRec+1)*nBlkX])');
     for k=1:nhAll
         m1All=mod(k-1+numRec-nhAll,nDelay)+1;
         m2All=mod(k+numRec,nDelay)+1;
@@ -790,16 +793,16 @@ function Filter = Filter60HzV16(RawFile, OutFile, Filter)
     -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,numRec*nBlkX+1],[Nchx,nBlkX]);
     newPhase=(deltaN-fXarg)*npyh;
     newC=circshift(squeeze(cAll(:,m1Single,:))+cSingle,newPhase,1);
-    if LenRec-(numRec+1)*nBlkX>nBlkX
+    if Filter.LenRec-(numRec+1)*nBlkX>nBlkX
         h5write(OutFile,'/recordings/0/data',int16(round((xTmp(1:nBlkX,ChMask)-newC)'))...
             ,[1,(numRec+1)*nBlkX+1],[Nchx,nBlkX]);
         newPhase=2*(deltaN-fXarg)*npyh;
         newC=circshift(squeeze(cAll(:,m1Single,:))+cSingle,newPhase,1);
-        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(nBlkX+1:end,ChMask)-newC(1:LenRec-(numRec+2)*nBlkX,:))'))...
-            ,[1,(numRec+2)*nBlkX+1],[Nchx,LenRec-(numRec+2)*nBlkX]);
+        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(nBlkX+1:end,ChMask)-newC(1:Filter.LenRec-(numRec+2)*nBlkX,:))'))...
+            ,[1,(numRec+2)*nBlkX+1],[Nchx,Filter.LenRec-(numRec+2)*nBlkX]);
     else
-        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(:,ChMask)-newC(1:LenRec-(numRec+1)*nBlkX,:))'))...
-        ,[1,(numRec+1)*nBlkX+1],[Nchx,LenRec-(numRec+1)*nBlkX]);
+        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(:,ChMask)-newC(1:Filter.LenRec-(numRec+1)*nBlkX,:))'))...
+        ,[1,(numRec+1)*nBlkX+1],[Nchx,Filter.LenRec-(numRec+1)*nBlkX]);
     end
     
 

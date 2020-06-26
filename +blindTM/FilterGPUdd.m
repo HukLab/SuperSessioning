@@ -112,7 +112,7 @@ classdef FilterGPUdd
             obj.Nwidth=length(obj.Twidth);
             obj.Ntail=length(obj.Ttail);
             obj.Namp=64;
-            obj.Xamp=logspace(1,3,obj.Namp+1)*3;
+            obj.Xamp=logspace(0,2,obj.Namp+1)*3;
             %for the hierarchical step:
             IndWidth=3:2:41;%20%excluding extreme values (large/small width)
             IndTail=3:2:17;%8

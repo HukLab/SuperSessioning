@@ -1,9 +1,9 @@
 %% Example master script 
 %This script can be used (and modified, renamed, etc.) to control the sorting process
 
-%define folders 
+%define base folder (to load instance of the sorter)
 BaseFolder='';
-RawFolder='';
+
 
 %% create an instance of the spike sorter
 %needs to be evaluated once, doesn't take any data, but sets default values
@@ -13,7 +13,12 @@ RawFolder='';
 %
 % comment this section once you have created an instance of the sorter!
 
-X=SuperSessioning(BaseFolder,RawFolder);
+%subject identifier
+subject='test';
+%where the raw data can be found
+RawFolder='';
+
+X=SuperSessioning(BaseFolder,RawFolder,subject);
 
 %can optionally change default values here
 
@@ -65,15 +70,14 @@ save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 %(this can be used to merge a list of sessions at once. When already merged
 %sessions are available, comment this section and use the incremental
 %version)
-X=X.mergeAll(Mask,FileName);
-
+SessInd=[1 2];
+FileName=[X.subject '_All_cat.mat'];
+X=X.mergeAll(FileName,SessInd);
 
 %save temporary backup of current sorter
 save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 
 %% add another session to merge
-%make sure this session is temporally after sessions that were already merged
-assert(X.TimeStamp(Ind)>X.TlastMerged,'Session in between already merged ones.')
 X=X.mergeNext(Ind);
 
 %% accumulate multi-unit Hash data

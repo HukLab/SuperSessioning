@@ -1,9 +1,8 @@
-function mergeIncLocMax(mBase,outBase,OutBaseCAR,File,subject)
+function mergeIncLocMax(obj,Ind)
 %want to save a copy of the original cluster file, add another session,
 %save new cluster file
-z0=load([outBase subject '_' 'All_cat.mat']);
+z0=load([obj.mergedFolder filesep obj.mergedFile]);
 z=z0.z;
-copyfile([outBase subject '_' 'All_cat.mat'],[outBase subject '_' 'All_cat.bak']);%move?
 
 Apenalty=hanning(2*z.Nampshift+5);
 Wpenalty=hanning(2*z.Nwshift+5);
@@ -15,7 +14,7 @@ Iu=z.nUnits(1,1);
 
 ii=z.Nrec;
 %append another session to the data
-m0=load([mBase  subject '_' File{:} '.mat']);
+m0=load([obj.singleSessionFolder filesep obj.singleSessionFile{Ind}]);
 %iSess=mod(ii-1,nMerge)+1;
 m=m0.m;
 for qy=1:length(m.Channel)
@@ -172,15 +171,10 @@ end
 z.UnitAge(:,ii)=z.UnitAge(:,ii-1)+1;
 z.UnitAge(z.Sessions(:,ii),ii)=1;
 %get spike shapes
-if strcmp(subject,'Jo')
-    OutFileCAR=[OutBaseCAR z.RawFile{ii}(1:end-8) 'CAR.kwd'];
-else
-    OutFileCAR=[OutBaseCAR z.RawFile{ii}];
-end
 for j=1:z.Nch
     ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
     if ~isempty(ChClust)
-        Raw=double(h5read(OutFileCAR,'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
+        Raw=double(h5read([obj.FiltFolder filesep obj.FiltFile{Ind}],'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
         for k=1:length(ChClust)
             t=round(z.Times{ii}{ChClust(k)});
             t=t(t>z.NcutPre+1);
@@ -203,5 +197,5 @@ for i=1:z.Nrec
         z.Times{i}{z.nUnits}=[];
     end
 end
-save([outBase subject '_' 'All_cat.mat'],'z','-v7.3')
+save([obj.mergedFolder filesep obj.mergedFile],'z','-v7.3')
 end

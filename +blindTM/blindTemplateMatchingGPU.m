@@ -1,4 +1,4 @@
-function blindTemplateMatchingGPU(Origin,Target,bTM,Filter)
+function blindTemplateMatchingGPU(Origin,Target,bTM)
 %threshold based spike detection and characterization
 %read file in batches (single channel)
 g={};
@@ -9,10 +9,11 @@ g.LenRec=floor(DataSize(1,2));
 g.Nch=floor(DataSize(1,1));
 
 
-h=load(MatFileCAR);
-[~,Vmx]=max(conv2(Filter.car.powerHistSingle,hanning(7),'same'),[],1);
+%h=load(MatFileCAR);
+%[~,Vmx]=max(conv2(Filter.car.powerHistSingle,hanning(7),'same'),[],1);
 
-g.varCh=10.^(Vmx/100);
+%g.varCh=10.^(Vmx/100);
+g.varCh=bTM.Noise;
 g.nBatch=3600000;
 g.Sampling=30;%kHz
 nRuns=ceil(g.LenRec/g.nBatch);

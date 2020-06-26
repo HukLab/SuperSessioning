@@ -1,24 +1,38 @@
 classdef SuperSessioning
     properties
         Sessions
+        TimeStamps
+        nRec
+        %folders and files
+        BaseFolder
         RawFiles
         RawFolder
         FiltFiles
         FiltFolder
         LocMaxFiles
         locMaxFolder
-        MergedList
+        singleSessionFiles
+        singleSessionFolder
+        mergedList
         mergedFolder
-        TimeStamps
+        mergedFile
+        plotFolder
+        %defaults
         defaultFilter
-        nC
-        nRec
+        defaultbTM
+        defaultClust
+        nC%naming conventions
         subject
-        
+        %session dependent
+        Noise
+        Filter
+        bTM
+        Clust
     end
     methods
         % create a file structure for analysis
-        function obj = SuperSessioning(BaseFolder,RawFolder)
+        function obj = SuperSessioning(BaseFolder,RawFolder,subject)
+            obj.BaseFolder=BaseFolder;
             %assert that BaseFolder exists
             assert(isDir(BaseFolder),'Folder does not exist')
             if nargin >1
@@ -54,7 +68,11 @@ classdef SuperSessioning
             end
             % initialize variables
             obj.TimeStamps=[];%allow for anything here, just make sure MATLAB can sort it.
+            obj.mergedList=[];
             obj.RawFiles={};
+            obj.FiltFiles={};
+            obj.LocMaxFiles={};
+            obj.singleSessionFiles={};
             obj.nRec=0;
             %settings for file names
             obj.nC={};
@@ -67,7 +85,7 @@ classdef SuperSessioning
             obj.nC.nExtLocMax=4;
             obj.nC.plotExt='.png';
             %subject identifier/name
-            obj.subject='';
+            obj.subject=subject;
             
             %default settings for filtering
             obj.defaultFilter=struct();
@@ -120,8 +138,9 @@ classdef SuperSessioning
                 obj.RawFiles{obj.nRec,1}=FileName;
                 obj.FiltFiles{obj.nRec,1}='';
                 obj.locMaxFiles{obj.nRec,1}='';
-                obj.mergedList(obj.nRec,1)=0;
                 obj.Filter{obj.nRec,1}=obj.defaultFilter;
+                obj.bTM{obj.nRec,1}=obj.defaultbTM;
+                obj.Clust{obj.nRec,1}=obj.defaultClust;
                 Ind=obj.nRec;
             elseif any(obj.TimeStamps==TimeStamp)
                 %assume adding a Raw file to the structure later
@@ -131,6 +150,12 @@ classdef SuperSessioning
                 obj.RawFiles{Ind}=FileName;
                 if ~isstruct(obj.Filter{Ind,1})
                     obj.Filter{Ind,1}=obj.defaultFilter;
+                end
+                if ~isstruct(obj.bTM{Ind,1})
+                    obj.bTM{Ind,1}=obj.defaultbTM;
+                end
+                if ~isstruct(obj.Clust{Ind,1})
+                    obj.Clust{Ind,1}=obj.defaultClust;
                 end
             else
                  %add an intermediate Raw file (allow adding files later),
@@ -142,6 +167,8 @@ classdef SuperSessioning
                  obj.locMaxFiles=[{obj.locMaxFiles(1:Ind,1)}; {}; {obj.locMaxFiles(Ind+1:obj.nRec,1)}];
                  obj.mergedList=[obj.mergedList(1:Ind,1); 0; obj.mergedList(Ind+1:obj.nRec,1)];
                  obj.Filter=[{obj.Filter(1:Ind,1)}; obj.defaultFilter; {obj.Filter(Ind+1:obj.nRec,1)}];
+                 obj.bTM=[{obj.bTM(1:Ind,1)}; obj.defaultbTM; {obj.bTM(Ind+1:obj.nRec,1)}];
+                 obj.Clust=[{obj.Clust(1:Ind,1)}; obj.defaultClust; {obj.Clust(Ind+1:obj.nRec,1)}];
                  obj.nRec=obj.nRec+1;
                  Ind=Ind+1;
             end
@@ -150,22 +177,23 @@ classdef SuperSessioning
         function obj=filter60Hz(obj,Ind)
             switch lower(obj.Filter{Ind}.pwl.origin)
                 case 'raw'
-                    Origin=[obj.RawFolder filesep obj.RawFile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.RawFiles{Ind}];
                 case 'filt'
-                    Origin=[obj.FiltFolder filesep obj.FiltFile{Ind}];
+                    Origin=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
                 otherwise
-                    Origin=[obj.RawFolder filesep obj.RawFile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.RawFiles{Ind}];
             end
             assert(isfile(Origin),['File not found, should be in ' Origin])
-            obj.FiltFile=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.Ext60Hz];
-            Target=[obj.FiltFolder filesep obj.FiltFile];
-            if obj.Filter.pwl.plotResults
+            obj.FiltFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.Ext60Hz];
+            Target=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
+            if obj.Filter{Ind}.pwl.plotResults
                 if ~isfolder(obj.Filter{Ind}.pwl.plotFolder)
                     mkdir(obj.Filter{Ind}.pwl.plotFolder);
                 end
             end
             %unique names for plots
-            obj.Filter{Ind}.pwl.plotName=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Filter.pwl.plotName obj.nC.plotExt];
+            obj.Filter{Ind}.pwl.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' ...
+                obj.Filter{Ind}.pwl.plotName obj.nC.plotExt];
             obj.Filter{Ind}=Filter60Hz(Origin, Target, obj.Filter{Ind});
             %may not want a temporary folder! Just save as filtered output
         end
@@ -173,57 +201,73 @@ classdef SuperSessioning
         function obj=filterCAR(obj,Ind)
             switch lower(obj.Filter{Ind}.car.origin)
                 case 'raw'
-                    Origin=[obj.RawFolder filesep obj.RawFile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.RawFiles{Ind}];
                 case 'filt'
-                    Origin=[obj.FiltFolder filesep obj.FiltFile{Ind}];
+                    Origin=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
                 otherwise
-                    Origin=[obj.RawFolder filesep obj.Filtile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.FiltFiles{Ind}];
             end
             assert(isfile(Origin),['File not found, should be in ' Origin])
-            obj.FiltFile=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtCAR];
-            Target=[obj.FiltFolder filesep obj.FiltFile];
-            if obj.Filter.car.plotResults
+            obj.FiltFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtCAR];
+            Target=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
+            if obj.Filter{Ind}.car.plotResults
                 if ~isfolder(obj.Filter{Ind}.car.plotFolder)
                     mkdir(obj.Filter{Ind}.car.plotFolder);
                 end
             end
-            obj.Filter{Ind}.car.plotName=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Filter.car.plotName obj.nC.plotExt];
+            obj.Filter{Ind}.car.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' ...
+                obj.Filter{Ind}.car.plotName obj.nC.plotExt];
             obj.Filter{Ind}=FilterCAR(Origin,Target, obj.Filter{Ind});
         end
         %need another step here to estimate high-pass filtered variances
         function obj=estimateStd(obj,Ind)
             %see whether filtering was done
-            
+            Origin=[obj.RawFolder filesep obj.FiltFiles{Ind}];
+            assert(isfile(Origin),['File not found, should be in ' Origin])
             %read data, high-pass filter and estimate variance
-            %make histograms for (overlapping) chunks of data, determine
+            %make histograms for (overlapping) chunks of data (~3s), determine
             %mode of histogram -- problem: outliers?
+            %do electrode by electrode
+            [b, a] = butter(3, 2*300/obj.Filter{Ind}.sRate, 'high');%300 Hz highpass filter
+            obj.Noise{Ind}.sigma=zeros(obj.Filter{Ind}.Nch,1);
+            for j=1:sum(obj.Filter{Ind}.ChMask)
+                x=double(h5read([obj.FiltFolder filesep obj.FiltFiles{Ind}],...
+                    '/recordings/0/data',[j,1],[1,obj.Filter{Ind}.LenRec(ii)])');
+                y=filtfilt(b,a,x);
+                ystd=std(y);
+                %clip everything larger than 5 standard deviations (these
+                %may be spikes and therefore activity-dependent)
+                x=y((-5*ystd<y) & (y<5*ystd));
+                obj.Noise{Ind}.sigma(j,1)=std(x);
+            end
         end
         %find local minima
         function obj=blindTemplateMatching(obj,Ind)
             switch lower(obj.bTM{Ind}.origin)
                 case 'raw'
-                    Origin=[obj.RawFolder filesep obj.RawFile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.RawFiles{Ind}];
                 case 'filt'
-                    Origin=[obj.FiltFolder filesep obj.FiltFile{Ind}];
+                    Origin=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
                 otherwise
-                    Origin=[obj.RawFolder filesep obj.FiltFile{Ind}];
+                    Origin=[obj.RawFolder filesep obj.FiltFiles{Ind}];
             end
-            obj.LocMaxFile=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
-            Target=[obj.LocMaxFolder filesep obj.LocMaxFile];
-            if obj.bTM.plotResults
+            obj.LocMaxFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
+            Target=[obj.LocMaxFolder filesep obj.LocMaxFiles{Ind}];
+            if obj.bTM{Ind}.plotResults
                 if ~isfolder(obj.bTM{Ind}.plotFolder)
                     mkdir(obj.bTM{Ind}.plotFolder);
                 end
             end
-            obj.bTM{Ind}.plotName=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.bTM.plotName obj.nC.plotExt];
+            obj.bTM{Ind}.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.bTM{Ind}.plotName obj.nC.plotExt];
+            obj.bTM{Ind}.Noise=obj.Noise{Ind};
             blindTemplateMatchingGPU(Origin,Target,obj.bTM{Ind})% probably want to add a few inputs here, and some output?
         end
         %cluster local minima from a session
         function obj=sortSession(obj,Ind)
-            Origin=[obj.LocMaxFolder filesep obj.LocMaxFile{Ind}];
-            obj.singleSessionFile=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
-            Target=[obj.singleSessionFolder filesep obj.singleSessionFile];
-            if obj.Clust.plotResults
+            Origin=[obj.LocMaxFolder filesep obj.LocMaxFiles{Ind}];
+            obj.singleSessionFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
+            Target=[obj.singleSessionFolder filesep obj.singleSessionFiles{Ind}];
+            if obj.Clust{Ind}.plotResults
                 if ~isfolder(obj.Clust{Ind}.plotFolderE)
                     mkdir(obj.Clust{Ind}.plotFolderE);
                 end
@@ -231,23 +275,35 @@ classdef SuperSessioning
                     mkdir(obj.Clust{Ind}.plotFolderC);
                 end
             end
-            obj.Clust{Ind}.plotNameE=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust.plotNameE obj.nC.plotExt];
-            obj.Clust{Ind}.plotNameC=[obj.RawFile{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust.plotNameC obj.nC.plotExt];
+            obj.Clust{Ind}.plotNameE=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust{Ind}.plotNameE obj.nC.plotExt];
+            obj.Clust{Ind}.plotNameC=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust{Ind}.plotNameC obj.nC.plotExt];
             obj.Clust{Ind}=clusterSession(Origin, Target, obj.Clust{Ind});
         end
         %merge list of recordings
-        function obj=mergeAll(obj,Mask,FileName)
+        function obj=mergeAll(obj,FileName,IndList)
             %need to check if there is already a sorted file
             assert ~isfile([obj.mergedFolder filesep FileName],'file')
-            obj=mergeAllLocMax(obj,[obj.mergedFolder filesep FileName],Mask);
+            mergeAllLocMax(obj,[obj.mergedFolder filesep FileName],IndList);
+            obj.mergedList=IndList;
+            obj.mergedFile=FileName;
+            %obj.TlastMerged=obj.TimeStamp(obj.mergedList(end));%better use a list of indices than Mask!!
         end
         %add next recording to merge
         function obj=mergeNext(obj,Ind)
-            mergeIncLocMax(mBase,outBase,OutBaseCAR,Files(i),subject)
+            %make sure this session is temporally after sessions that were already merged
+            assert(obj.TimeStamp(Ind)>obj.TimeStamp(obj.mergedList(end)),...
+                'Session in between already merged ones.')
+            copyfile([obj.mergedFolder filesep obj.mergedFile],[obj.mergedFolder filesep obj.mergedFile(1:end-4) '.bak']);
+            mergeIncLocMax(obj,[obj.mergedFolder filesep obj.mergedFile],Ind)
+            obj.mergedList=[obj.mergedList Ind];
         end
         %merge hash (no incremental version here)
-        function obj=mergeHash(obj,Ind)
-            mergeAllHash(mBase,outBase,Files(2:4),subject)
+        function obj=mergeHash(obj,IndList)
+            obj.hashFolder=[obj.BaseFolder filesep 'hash'];
+            if ~isfolder(obj.hashFolder)
+                mkdir(obj.hashFolder);
+            end
+            mergeAllHash(obj,IndList);
         end
     end
 end

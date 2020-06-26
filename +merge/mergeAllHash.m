@@ -1,14 +1,14 @@
-function mergeAllHash(mBase,outBase,Files,subject)
+function mergeAllHash(obj,IndList)
 %only try to merge clusters if    plotBase,,plotMerge,plotMax
-nSessions=length(Files);
-m0=load([mBase subject '_' Files{1} '.mat']);
+nSessions=length(IndList);
+m0=load([obj.singleSessionFolder filesep obj.singleSessionFile{IndList(1)}]);
 m=m0.m;
 for ch=1:m.Nch
     z=struct();
     z.RecId={};
     z.RawFile={};
     for ii=1:1
-        m0=load([mBase subject '_' Files{ii} '.mat']);
+        m0=load([obj.singleSessionFolder filesep obj.singleSessionFile{IndList(ii)}]);
         m=m0.m;
         z.Nch=m.Nch;
         z.Channel=ch;
@@ -42,7 +42,7 @@ for ch=1:m.Nch
         %ii0=ii-nMerge+1;
         disp(ii)
         %append another session to the data
-        m0=load([mBase  subject '_' Files{ii} '.mat']);
+        load([obj.singleSessionFolder filesep obj.singleSessionFile{IndList(ii)}])
         %iSess=mod(ii-1,nMerge)+1;
         m=m0.m;
         z.RecId{ii}=m.RecId;
@@ -51,6 +51,6 @@ for ch=1:m.Nch
         z.hashTimes{ii}=m.hashTimes{ch,1};
         z.LenRec(ii)=m.LenRec;
     end
-    save([outBase subject '_ch' num2str(ch) '_hash.mat'],'z','-v7.3')
+    save([obj.hashFolder filesep obj.subject '_ch' num2str(ch) '_hash.mat'],'z','-v7.3')
 end
 end

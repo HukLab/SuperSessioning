@@ -298,9 +298,6 @@ ax1.YDir='normal';
 hC=colorbar(ax1,'Ticks',[-2 0 2],...
     'TickLabels',{'0.01','1','100'});
 hC.Label.String = 'Hz';
-if ~isfolder([plotBase 'MaxLoc/'])
-    mkdir([plotBase 'MaxLoc/'])
-end
 tic; pause(2); toc;
 saveas(fig1,[Clust.plotFolderE filesep Clust.plotFileE])
 close(fig1)

@@ -1,6 +1,6 @@
-function mergeAllLocMax(mBase,outBase,OutBaseCAR,Files,subject)
+function mergeAllLocMax(obj,OutFile,IndList)
 %only try to merge clusters if    plotBase,,plotMerge,plotMax
-nSessions=length(Files);
+nSessions=length(IndList);
 nMerge=3;
 
 fracSpkOffset=0.0001;%bias large clusters by subtracting a baseline
@@ -35,7 +35,7 @@ z.Units={};%new unit Ids
 z.Jthreshold=Jthreshold;
 z.fracSpkOffset=fracSpkOffset;
 for ii=1:1
-    m0=load([mBase subject '_' Files{ii} '.mat']);
+    m0=load([obj.singleSessionFolder filesep obj.singleSessionFile{IndList(ii)}]);
     m=m0.m;
     z.Sessions=zeros(m.nUnits,1,'logical');
     z.Nch=m.Nch;
@@ -93,11 +93,10 @@ for ii=1:1
         z.zSH{qy,1}=z.zSH{qy}/max(sum(z.zSH{qy},'all'),z.Bsc);
     end
     %get spike shapes
-    OutFileCAR=[OutBaseCAR z.RawFile{ii}];
     for j=1:z.Nch
         ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
         if ~isempty(ChClust)
-            Raw=double(h5read(OutFileCAR,'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
+            Raw=double(h5read([obj.FiltFolder filesep obj.FiltFile{IndList(ii)}],'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
             for k=1:length(ChClust)
                 t=round(z.Times{ii}{ChClust(k)});
                 t=t(t>z.NcutPre+1);
@@ -118,7 +117,7 @@ for ii=2:nSessions
     %ii0=ii-nMerge+1;
     disp(ii)
     %append another session to the data
-    m0=load([mBase  subject '_' Files{ii} '.mat']);
+    m0=load([obj.singleSessionFolder filesep obj.singleSessionFile{IndList(ii)}]);
     %iSess=mod(ii-1,nMerge)+1;
     m=m0.m;
     for qy=1:length(m.Channel)
@@ -291,15 +290,10 @@ for ii=2:nSessions
     z.UnitAge(:,ii)=z.UnitAge(:,ii-1)+1;
     z.UnitAge(z.Sessions(:,ii),ii)=1;
     %get spike shapes
-    if strcmp(subject,'Jo')
-        OutFileCAR=[OutBaseCAR z.RawFile{ii}(1:end-8) 'CAR.kwd'];
-    else
-        OutFileCAR=[OutBaseCAR z.RawFile{ii}];
-    end
     for j=1:z.Nch
         ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
         if ~isempty(ChClust)
-            Raw=double(h5read(OutFileCAR,'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
+            Raw=double(h5read([obj.FiltFolder filesep obj.FiltFile{IndList(ii)}],'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
             for k=1:length(ChClust)
                 t=round(z.Times{ii}{ChClust(k)});
                 t=t(t>z.NcutPre+1);
@@ -324,5 +318,5 @@ for i=1:nSessions
     end
 end
 
-save([outBase subject '_' 'All_cat.mat'],'z','-v7.3')
+save(OutFile,'z','-v7.3')
 end
