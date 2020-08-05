@@ -1,6 +1,5 @@
-function clusterSession(Origin, Target, Clust)
+function Clust=clusterSession(Origin, Target, Clust)
 
-disp(File)
 %Parameter
 %smoothing (half kernel)
 nsih=10;% ISI, samples
@@ -23,10 +22,6 @@ Bsc=0.000000001;%baseline spike rate (false positives!)
 
 Jthreshold=0.3*log(2);
 
-if ~isfolder(plotBase)
-    mkdir(plotBase)
-end
-
 %% load spike data from template matching
 p=load(Origin);
 g=p.g;
@@ -39,8 +34,8 @@ Cks=sum(Ckernel,'all');
 
 %% prepare output
 m=struct();
-m.RecId=File;
-m.RawFile=[File '_CAR.kwd'];
+m.RecId=Clust.RecId;
+m.RawFile=Clust.RawFile;
 m.KSunits=(1:g.Nch)';
 m.Sampling=g.Sampling*1000;
 m.LenRec=g.LenRec;
@@ -98,7 +93,7 @@ for i=1:m.Nch
     %SH=reshape(histcounts(SpkSH,1:m.Namp*m.Nwidth*m.Ntail+1),m.Ntail,m.Nwidth,m.Namp)*m.HzNorm;
     SH=squeeze(g.SpkHist(:,:,:,i))*m.HzNorm;
     %split with watershed
-    [L,Lpwt,Spwt,Lspk]=NspikeRad(SHqp,SH,m.Ntail,m.Nwidth,m.Namp);
+    [L,Lpwt,Spwt,Lspk]=merge.NspikeRad(SHqp,SH,m.Ntail,m.Nwidth,m.Namp);
     %Lmean=sum(SH.*AmpMat,'all')/sum(SH,'all');
     %minimum firing rate, no boundary cluster.
     Lmsk=find((Lspk>0.05).*(Lpwt(:,1)-0.5*Spwt(:,1)-Lpwt(:,2)/4>3).*...
@@ -190,25 +185,14 @@ for i=1:m.Nch
 end
 m.nUnits=size(m.Channel,1);
 
-%plotting
-if strcmp(subject,'Jo')
-    m.Nch=57;
-    ChMask=1:m.Nch;
-    xMap=[4 4 4 4 3 3 3 3 1 1 1 1 2 3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5];
-    xMap2=[3 3 3 3 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5];
-    xMap=[xMap xMap2+4];
-    yMap=[12 10 8 6 7 5 3 1 1 3 5 7 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
-    yMap2=[7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
-    yMap=[yMap yMap2];
-else
-    m.Nch=64;
-    ChMask=1:m.Nch;
-    xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
-    xMap=[xMap+4 xMap];
-    %yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
-    yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
-    yMap=[yMap yMap];
-end
+
+m.Nch=64;
+ChMask=1:m.Nch;
+xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
+xMap=[xMap+4 xMap];
+%yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
+yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
+yMap=[yMap yMap];
 
 %%
 
@@ -299,7 +283,7 @@ hC=colorbar(ax1,'Ticks',[-2 0 2],...
     'TickLabels',{'0.01','1','100'});
 hC.Label.String = 'Hz';
 tic; pause(2); toc;
-saveas(fig1,[Clust.plotFolderE filesep Clust.plotFileE])
+saveas(fig1,[Clust.plotFolderE filesep Clust.plotNameE])
 close(fig1)
 
 %save to file.
@@ -346,7 +330,7 @@ for i=1:m.nUnits
 %         yticks(ax1,[])
 end
 tic; pause(2); toc;
-saveas(fig1,[Clust.plotFolderC filesep Clust.plotFileC])
+saveas(fig1,[Clust.plotFolderC filesep Clust.plotNameC])
 close(fig1)
 
 %save data

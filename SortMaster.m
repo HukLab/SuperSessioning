@@ -2,7 +2,7 @@
 %This script can be used (and modified, renamed, etc.) to control the sorting process
 
 %define base folder (to load instance of the sorter)
-BaseFolder='';
+BaseFolder='/home/huklab/data/SuperSessioning/SortFolder';
 
 
 %% create an instance of the spike sorter
@@ -16,7 +16,7 @@ BaseFolder='';
 %subject identifier
 subject='test';
 %where the raw data can be found
-RawFolder='';
+RawFolder='/home/huklab/data/RawCAR_Bruno/';
 
 X=SuperSessioning(BaseFolder,RawFolder,subject);
 
@@ -35,15 +35,21 @@ load([BaseFolder filesep 'spikeSorter.mat'])
 %can copy and paste from file browser (would be nice to have a timestamp in
 %the file name, e.g. XXX_2017-11-13_13-12-21.raw.kwd, otherwise need to
 %adapt method to create a sortable timestamp.
-File='';
+File='/home/muthmann/data/RawCAR_Bruno/b_2019-02-01_16-34-42.raw.kwd';
 [~,NAME,EXT] = fileparts(File);
-Filename=[NAME EXT];
-TimeStamp=second(datestr(datenum(regexp(NAME,...
-    '^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})','tokens'))));
+FileName=[NAME EXT];
+h=regexp(NAME,'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})','tokens');
+h=h{:};
+TimeStamp=datenum(str2double(h{1}),str2double(h{2}),str2double(h{3}),str2double(h{4}),...
+    str2double(h{5}),str2double(h{6}));
 
 [X,Ind]=X.addRaw(FileName,TimeStamp);
 %returns current index of the raw file, can change some session specific
 %parameters here
+
+%%
+%take only first 2 min of data
+X.Filter{Ind}.tEnd=2;
 
 %% filter powerline noise and common average referencing
 X=X.filter60Hz(Ind);
@@ -70,7 +76,7 @@ save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 %(this can be used to merge a list of sessions at once. When already merged
 %sessions are available, comment this section and use the incremental
 %version)
-SessInd=[1 2];
+SessInd=[1 1];
 FileName=[X.subject '_All_cat.mat'];
 X=X.mergeAll(FileName,SessInd);
 
@@ -83,7 +89,7 @@ X=X.mergeNext(Ind);
 %% accumulate multi-unit Hash data
 %need to do once, after recording a bunch of sessions (?)
 %should run on a per electrode basis.
-X=X.mergeHash(Ind);
+X=X.mergeHash(X.mergedList);
 
 %% after each session (?!)
 %backup old X, save new X

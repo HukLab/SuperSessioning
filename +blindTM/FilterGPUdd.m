@@ -60,7 +60,7 @@ classdef FilterGPUdd
                 obj.nBatch=nBatch;
                 obj.varCh=varCh;
                 obj.LenRec=floor(LenRec/5)*5;
-                obj.maxBatch=floor(obj.LenRec/nBatch);
+                obj.maxBatch=floor((obj.LenRec-obj.dh)/nBatch);
                 %obj.templateBankG=templateBankG;%possible spike shapes
                 %obj.templateMaskG=templateMaskG;%excluded spike shapes
             else
@@ -77,7 +77,7 @@ classdef FilterGPUdd
                 obj.nBatch=nBatch;
                 obj.varCh=varCh;
                 obj.LenRec=floor(LenRec/5)*5;
-                obj.maxBatch=floor(obj.LenRec/nBatch);
+                obj.maxBatch=floor((obj.LenRec-obj.dh)/nBatch);
             end
             obj.Nstep=obj.nBatch/obj.dt2+1;
             obj.NNd=5;
@@ -205,17 +205,17 @@ classdef FilterGPUdd
             if i==1
                 x=zeros(obj.nBatch+obj.d,1);
                 x((obj.dh+1):end)=double(h5read(OutFileCAR,'/recordings/0/data',...
-                    [ii,1],[1,obj.nBatch+obj.dh-1])')/obj.varCh;
+                    [ii,1],[1,obj.nBatch+obj.dh-1])')/obj.varCh(ii);
                 x(1:(obj.dh),1)=x(obj.d+1:-1:(obj.dh+1),1);
                 xG=gpuArray(x);
             elseif i<=obj.maxBatch
                 xG=gpuArray(double(h5read(OutFileCAR,'/recordings/0/data',...
-                    [ii,(i-1)*obj.nBatch+1-obj.dh],[1,obj.nBatch+obj.d])')/obj.varCh);
+                    [ii,(i-1)*obj.nBatch+1-obj.dh],[1,obj.nBatch+obj.d])')/obj.varCh(ii));
             else
                 %L=mod(obj.LenRec,obj.nBatch);
                 x=zeros(obj.nBatch+obj.d,1);
                 x(1:end-obj.dh+1)=double(h5read(OutFileCAR,'/recordings/0/data',...
-                    [ii,obj.LenRec-obj.nBatch+1-obj.dh],[1,obj.nBatch+obj.dh])')/obj.varCh;
+                    [ii,obj.LenRec-obj.nBatch+1-obj.dh],[1,obj.nBatch+obj.dh])')/obj.varCh(ii);
                 x(end-obj.dh+2:end,1)=x(end-obj.dh:-1:end-obj.d+1,1);
                 xG=gpuArray(x);
             end
@@ -259,7 +259,7 @@ classdef FilterGPUdd
             xbsG=xG-xcG;
             %get variance measure for intervals of 40 ms or so.
             if i>obj.maxBatch
-                n=mod(obj.LenRec,obj.nBatch);
+                n=obj.LenRec-obj.maxBatch*obj.nBatch;
                 xbV=gather(mean(reshape(abs(xbsG(obj.dh+obj.nBatch-n+1:obj.dh+obj.nBatch-n+...
                     obj.dt0*(ceil(n/obj.dt0)))),obj.dt0,[]),1));
                 xbV=[(xbV(1:end-1)+xbV(2:end))/2 xbV(end) xbV(end)];%make one bin longer
@@ -335,11 +335,11 @@ classdef FilterGPUdd
             yi2=find(yi1==3);
             yi(yi2)=yi(yi2+1)+5;
             z=((obj.dt2h/5:(obj.nBatch+obj.dt2h)/5-1)*5+yi+obj.dtPadh-obj.tMx-1).*(y+y1>1)+(y+y1<=1);
-            LocMaxC=(z'>1).*(obj.Ntail*obj.Nwidth*floor(min(((log10(max(PwrG(z)/3,10))-1)*32),64))+...
+            LocMaxC=(z'>1).*(obj.Ntail*obj.Nwidth*floor(min(log10(max(PwrG(z)/3,1))*32,64))+...
                 obj.Ntail*WidthG(z)+TailG(z));%make rejected spikes zero
             x=x(abs(x-obj.nBatch/2-obj.dt2h-0.5)<(obj.nBatch/2));%no double detections!
             LocMaxE=zeros(length(x),2,'double','gpuArray');
-            LocMaxE(:,1)=obj.Ntail*obj.Nwidth*floor(min(((log10(max(PwrG(x)/3,10))-1)*32),64))+...
+            LocMaxE(:,1)=obj.Ntail*obj.Nwidth*floor(min(log10(max(PwrG(x)/3,1))*32,64))+...
                 obj.Ntail*WidthG(x)+TailG(x);
             LocMaxE(:,2)=(i-1)*obj.nBatch+x-obj.dtPadh-obj.dt2h+obj.tMx-1+(PhaseG(x))/obj.Nphase;%time, one-based
             %create three outputs:

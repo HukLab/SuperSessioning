@@ -1,4 +1,4 @@
-function FilterCAR(RawFile,OutFile,Filter)
+function Filter=FilterCAR(RawFile,OutFile,Filter)
 
 %%Common noise reduction
 
@@ -36,7 +36,7 @@ function FilterCAR(RawFile,OutFile,Filter)
 %TODO: Mask for use directly with raw data
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Nch=size(Filter.car.ChMask,2);
+Nch=sum(Filter.ChMask,2);
 
 %%Parameters (to be set in this script):
 %maximum number of frames in one batch
@@ -534,6 +534,11 @@ for i=1:nRuns
         plot(axFilt1V,(1:1000)*1000/sRate(1,1),Za(2:1001,PlotChannel)*bitVolt(1,1)/(dt),'b')
         plot(axFilt1V,(1:1000)*1000/sRate(1,1),Zb(1:1000,PlotChannel)*bitVolt(1,1)/(dt),'c')
     end
+end
+
+if i*nBatch+dtshift+1<LenRec
+    x=double(h5read(RawFile,'/recordings/0/data',[1,i*nBatch+dtshift+2],[Nch,LenRec-i*nBatch-dtshift-1])');
+    h5write(OutFile,'/recordings/0/data',int16(round(x)'),[1,i*nBatch+dtshift+2],[Nch,LenRec-i*nBatch-dtshift-1]);
 end
 
 if Filter.car.plotResults

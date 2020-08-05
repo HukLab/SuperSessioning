@@ -1,4 +1,6 @@
 classdef SuperSessioning
+    %class for file handling, shared variables and collection of
+    %applied parameters.
     properties
         Sessions
         TimeStamps
@@ -9,13 +11,14 @@ classdef SuperSessioning
         RawFolder
         FiltFiles
         FiltFolder
-        LocMaxFiles
+        locMaxFiles
         locMaxFolder
         singleSessionFiles
         singleSessionFolder
         mergedList
         mergedFolder
         mergedFile
+        hashFolder
         plotFolder
         %defaults
         defaultFilter
@@ -34,9 +37,9 @@ classdef SuperSessioning
         function obj = SuperSessioning(BaseFolder,RawFolder,subject)
             obj.BaseFolder=BaseFolder;
             %assert that BaseFolder exists
-            assert(isDir(BaseFolder),'Folder does not exist')
+            assert(isdir(BaseFolder),'Folder does not exist')
             if nargin >1
-                assert(isDir(RawFolder),'Raw data folder does not exist')
+                assert(isdir(RawFolder),'Raw data folder does not exist')
                 obj.RawFolder=RawFolder;
             else
                 obj.RawFolder=[BaseFolder filesep 'Raw'];
@@ -71,7 +74,7 @@ classdef SuperSessioning
             obj.mergedList=[];
             obj.RawFiles={};
             obj.FiltFiles={};
-            obj.LocMaxFiles={};
+            obj.locMaxFiles={};
             obj.singleSessionFiles={};
             obj.nRec=0;
             %settings for file names
@@ -95,14 +98,14 @@ classdef SuperSessioning
             obj.defaultFilter.pwl.origin='raw';
             obj.defaultFilter.pwl.target='filt';
             obj.defaultFilter.pwl.plotResults=true;
-            obj.defaultFilter.pwl.plotFolder=[plotFolder filesep 'Plot_60Hz'];
+            obj.defaultFilter.pwl.plotFolder=[obj.plotFolder filesep 'Plot_60Hz'];
             obj.defaultFilter.pwl.plotName='Powerline';
             obj.defaultFilter.pwl.returnPlotData=false;
             %parameters for common average referencing
             obj.defaultFilter.car.origin='filt';
             obj.defaultFilter.car.target='filt';
             obj.defaultFilter.car.plotResults=true;
-            obj.defaultFilter.car.plotFolder=[plotFolder filesep 'Plot_CAR'];
+            obj.defaultFilter.car.plotFolder=[obj.plotFolder filesep 'Plot_CAR'];
             obj.defaultFilter.car.plotName='CommonAvg';
             %restricting temporal interval/recording electrodes 
             obj.defaultFilter.tStart=0;%change to exclude a segment at the beginning of the recording
@@ -115,13 +118,15 @@ classdef SuperSessioning
             
             %default settings for local minima
             obj.defaultbTM.plotResults=true;
-            obj.defaultbTM.plotFolder=[plotFolder filesep 'Plot_LocMax'];
+            obj.defaultbTM.plotFolder=[obj.plotFolder filesep 'Plot_LocMax'];
             obj.defaultbTM.plotName='LocMax';
+            obj.defaultbTM.origin='filt';
+            obj.defaultbTM.ChMap=obj.defaultFilter.ChMap(obj.defaultFilter.ChMask);
             %default settings for clustering
             obj.defaultClust.plotResults=true;
-            obj.defaultClust.plotFolderE=[plotFolder filesep 'Plot_Electrodes'];
+            obj.defaultClust.plotFolderE=[obj.plotFolder filesep 'Plot_Electrodes'];
             obj.defaultClust.plotNameE='Electrodes';
-            obj.defaultClust.plotFolderC=[plotFolder filesep 'Plot_Cluster'];
+            obj.defaultClust.plotFolderC=[obj.plotFolder filesep 'Plot_Cluster'];
             obj.defaultClust.plotNameC='Clusters';
             %default settings for merging
             %obj.defaultMerge.plotResults=true;
@@ -194,7 +199,7 @@ classdef SuperSessioning
             %unique names for plots
             obj.Filter{Ind}.pwl.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' ...
                 obj.Filter{Ind}.pwl.plotName obj.nC.plotExt];
-            obj.Filter{Ind}=Filter60Hz(Origin, Target, obj.Filter{Ind});
+            obj.Filter{Ind}=filter.Filter60Hz(Origin, Target, obj.Filter{Ind});
             %may not want a temporary folder! Just save as filtered output
         end
         %common average referencing
@@ -217,28 +222,30 @@ classdef SuperSessioning
             end
             obj.Filter{Ind}.car.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' ...
                 obj.Filter{Ind}.car.plotName obj.nC.plotExt];
-            obj.Filter{Ind}=FilterCAR(Origin,Target, obj.Filter{Ind});
+            obj.Filter{Ind}=filter.FilterCAR(Origin,Target, obj.Filter{Ind});
         end
         %need another step here to estimate high-pass filtered variances
         function obj=estimateStd(obj,Ind)
             %see whether filtering was done
-            Origin=[obj.RawFolder filesep obj.FiltFiles{Ind}];
+            Origin=[obj.FiltFolder filesep obj.FiltFiles{Ind}];
             assert(isfile(Origin),['File not found, should be in ' Origin])
             %read data, high-pass filter and estimate variance
             %make histograms for (overlapping) chunks of data (~3s), determine
             %mode of histogram -- problem: outliers?
             %do electrode by electrode
-            [b, a] = butter(3, 2*300/obj.Filter{Ind}.sRate, 'high');%300 Hz highpass filter
+            [b, a] = butter(4, 2*300/obj.Filter{Ind}.sRate, 'high');%300 Hz highpass filter
+            obj.Noise{Ind}.sigmaADC=zeros(obj.Filter{Ind}.Nch,1);
             obj.Noise{Ind}.sigma=zeros(obj.Filter{Ind}.Nch,1);
             for j=1:sum(obj.Filter{Ind}.ChMask)
                 x=double(h5read([obj.FiltFolder filesep obj.FiltFiles{Ind}],...
-                    '/recordings/0/data',[j,1],[1,obj.Filter{Ind}.LenRec(ii)])');
+                    '/recordings/0/data',[j,1],[1,obj.Filter{Ind}.LenRec])');
                 y=filtfilt(b,a,x);
                 ystd=std(y);
                 %clip everything larger than 5 standard deviations (these
                 %may be spikes and therefore activity-dependent)
                 x=y((-5*ystd<y) & (y<5*ystd));
-                obj.Noise{Ind}.sigma(j,1)=std(x);
+                obj.Noise{Ind}.sigmaADC(j,1)=std(x);
+                obj.Noise{Ind}.sigma(j,1)=std(x)*obj.Filter{1}.bitVolt;
             end
         end
         %find local minima
@@ -251,20 +258,20 @@ classdef SuperSessioning
                 otherwise
                     Origin=[obj.RawFolder filesep obj.FiltFiles{Ind}];
             end
-            obj.LocMaxFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
-            Target=[obj.LocMaxFolder filesep obj.LocMaxFiles{Ind}];
+            obj.locMaxFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
+            Target=[obj.locMaxFolder filesep obj.locMaxFiles{Ind}];
             if obj.bTM{Ind}.plotResults
                 if ~isfolder(obj.bTM{Ind}.plotFolder)
                     mkdir(obj.bTM{Ind}.plotFolder);
                 end
             end
-            obj.bTM{Ind}.plotName=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.bTM{Ind}.plotName obj.nC.plotExt];
+            obj.bTM{Ind}.plotFile=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.bTM{Ind}.plotName obj.nC.plotExt];
             obj.bTM{Ind}.Noise=obj.Noise{Ind};
-            blindTemplateMatchingGPU(Origin,Target,obj.bTM{Ind})% probably want to add a few inputs here, and some output?
+            blindTM.blindTemplateMatchingGPU(Origin,Target,obj.bTM{Ind})% probably want to add a few inputs here, and some output?
         end
         %cluster local minima from a session
         function obj=sortSession(obj,Ind)
-            Origin=[obj.LocMaxFolder filesep obj.LocMaxFiles{Ind}];
+            Origin=[obj.locMaxFolder filesep obj.locMaxFiles{Ind}];
             obj.singleSessionFiles{Ind}=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) obj.nC.ExtLocMax];
             Target=[obj.singleSessionFolder filesep obj.singleSessionFiles{Ind}];
             if obj.Clust{Ind}.plotResults
@@ -275,15 +282,17 @@ classdef SuperSessioning
                     mkdir(obj.Clust{Ind}.plotFolderC);
                 end
             end
+            obj.Clust{Ind}.RecId=obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1);
+            obj.Clust{Ind}.RawFile=[obj.RawFolder filesep obj.RawFiles{Ind}];
             obj.Clust{Ind}.plotNameE=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust{Ind}.plotNameE obj.nC.plotExt];
             obj.Clust{Ind}.plotNameC=[obj.RawFiles{Ind}(1:end-obj.nC.nExtRaw-1) '_' obj.Clust{Ind}.plotNameC obj.nC.plotExt];
-            obj.Clust{Ind}=clusterSession(Origin, Target, obj.Clust{Ind});
+            obj.Clust{Ind}=merge.clusterSession(Origin, Target, obj.Clust{Ind});
         end
         %merge list of recordings
         function obj=mergeAll(obj,FileName,IndList)
             %need to check if there is already a sorted file
-            assert ~isfile([obj.mergedFolder filesep FileName],'file')
-            mergeAllLocMax(obj,[obj.mergedFolder filesep FileName],IndList);
+            assert(~isfile([obj.mergedFolder filesep FileName]))
+            merge.mergeAllLocMax(obj,[obj.mergedFolder filesep FileName],IndList);
             obj.mergedList=IndList;
             obj.mergedFile=FileName;
             %obj.TlastMerged=obj.TimeStamp(obj.mergedList(end));%better use a list of indices than Mask!!
@@ -291,10 +300,10 @@ classdef SuperSessioning
         %add next recording to merge
         function obj=mergeNext(obj,Ind)
             %make sure this session is temporally after sessions that were already merged
-            assert(obj.TimeStamp(Ind)>obj.TimeStamp(obj.mergedList(end)),...
-                'Session in between already merged ones.')
+            %assert(obj.TimeStamps(Ind)>obj.TimeStamps(obj.mergedList(end)),...
+            %    'Session in between already merged ones.')
             copyfile([obj.mergedFolder filesep obj.mergedFile],[obj.mergedFolder filesep obj.mergedFile(1:end-4) '.bak']);
-            mergeIncLocMax(obj,[obj.mergedFolder filesep obj.mergedFile],Ind)
+            merge.mergeIncLocMax(obj,Ind)
             obj.mergedList=[obj.mergedList Ind];
         end
         %merge hash (no incremental version here)
@@ -303,7 +312,7 @@ classdef SuperSessioning
             if ~isfolder(obj.hashFolder)
                 mkdir(obj.hashFolder);
             end
-            mergeAllHash(obj,IndList);
+            merge.mergeAllHash(obj,IndList);
         end
     end
 end

@@ -13,8 +13,8 @@ g.Nch=floor(DataSize(1,1));
 %[~,Vmx]=max(conv2(Filter.car.powerHistSingle,hanning(7),'same'),[],1);
 
 %g.varCh=10.^(Vmx/100);
-g.varCh=bTM.Noise;
-g.nBatch=3600000;
+g.varCh=bTM.Noise.sigmaADC;
+g.nBatch=1800000;%increase if GPU memory allows
 g.Sampling=30;%kHz
 nRuns=ceil(g.LenRec/g.nBatch);
 
@@ -24,7 +24,7 @@ nRuns=ceil(g.LenRec/g.nBatch);
 %on-channel data to µV
 g.LMC=zeros(floor(g.LenRec/5),g.Nch);
 g.LME=cell(g.Nch,1);
-GPUfilt=FilterGPUdd(g.nBatch,g.varCh(1),g.LenRec,g.Sampling);
+GPUfilt=blindTM.FilterGPUdd(g.nBatch,g.varCh,g.LenRec,g.Sampling);
 g.Ntail=GPUfilt.Ntail;
 g.Nwidth=GPUfilt.Nwidth;
 g.Namp=GPUfilt.Namp;
@@ -41,7 +41,7 @@ g.dt0=GPUfilt.dt0;
 g.bV=zeros(ceil(g.LenRec/g.dt0),g.Nch);
 for ii=1:g.Nch
     disp(ii)
-    GPUfilt.varCh=g.varCh(ii);
+    %GPUfilt.varCh=g.varCh(ii);
     g.LME{ii}=[];
     for i=1:nRuns-1
         [LocMaxContinous,LocMaxEvents,LocMaxHist,LocMaxHist0,xbV]=GPUfilt.FiltSection(Origin,ii,i);
@@ -64,10 +64,10 @@ g.SpkHist=reshape(SHist,g.Ntail,g.Nwidth,g.Namp,g.Nch);
 g.SpkHist0=reshape(SHist0,g.Ntail,g.Nwidth,g.Namp,g.Nch);
 
 if bTM.plotResults
-    ChMask=1:g.Nch;
-    xMap=[4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5];
+    ChMask=bTM.ChMap;
+    xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
     xMap=[xMap+4 xMap];
-    yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
+    yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
     yMap=[yMap yMap];
 
     xPos=(0:9)*0.1+0.005;
@@ -80,6 +80,7 @@ if bTM.plotResults
         ax1.CLim=[0 5];
         xticks(ax1,[])
         yticks(ax1,[])
+        ax1.YDir='normal';
     end
     %tail
     for i=1:g.Nch
@@ -89,6 +90,7 @@ if bTM.plotResults
         ax1.CLim=[0 5];
         xticks(ax1,[])
         yticks(ax1,[])
+        ax1.YDir='normal';
     end
     ax1 = axes('OuterPosition',[xPos(8) yPos(5)+0.05 0.28 0.21]);
     imagesc(ax1,log10(squeeze(sum(sum(g.SpkHist(2:end-1,:,:,:),4),1)))');
@@ -98,7 +100,8 @@ if bTM.plotResults
     xlabel(ax1,'width/ms')
     yticks(ax1,[0.5 32.5 64.5])
     yticklabels(ax1,g.Xamp(1:32:65))
-    ylabel(ax1,'power/stdev')
+    ylabel(ax1,'amplitude/SD')
+    ax1.YDir='normal';
     hC=colorbar(ax1,'Ticks',[1 3 5],...
         'TickLabels',{'10','1e3','1e5'});
     hC.Label.String = 'count';
@@ -112,7 +115,8 @@ if bTM.plotResults
     xlabel(ax1,'frac. of tail')
     yticks(ax1,[0.5 32.5 64.5])
     yticklabels(ax1,g.Xamp(1:32:65))
-    ylabel(ax1,'power/stdev')
+    ylabel(ax1,'amplitude/SD')
+    ax1.YDir='normal';
     hC=colorbar(ax1,'Ticks',[1 3 5],...
         'TickLabels',{'10','1e3','1e5'});
     hC.Label.String = 'count';
