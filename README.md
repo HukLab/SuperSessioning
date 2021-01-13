@@ -1,24 +1,24 @@
-#SuperSessioning
+# SuperSessioning
 a toolbox for cross session sorting of neural data
 
-##Scope
-####Technical
+## Scope
+#### Technical
 - Characterize local minima in the voltage traces across the array, and obtain an estimate of overall recording quality.
 - Establish a metric for individual spikes for cross session comparisons, which is robust to additive noise.
 - Use a minimal temporal windows for sorting and reduce overlap between spikes
 
-####Experimental
+#### Experimental
 - Chronically implanted electrode arrays in awake behaving animals, with no or little electrode drift across recording sessions.
 - Sorting on individual electrodes, assuming electrode distances >100 µm
 - Perform clustering in a noise dependent way, and ignore bouts of high noise across the array in the clustering step.
 - visualize 
 
-##Overview of the toolbox
+## Overview of the toolbox
 - roughly split into single session and cross session analysis
 - use one .mat file to keep track of parameters, files etc. across sessions
 - same file keeps track of which sessions have been merged
 
-####Operating modes
+#### Operating modes
 - (TODO) function that (currently) does detection and sorting for single sessions only, plus RecordingExtractors and SortingExtractors, for integration with [SpikeInterface](https://github.com/SpikeInterface).
 - (TODO) function that does the sorting for one recording session, without merging.
 - script for stepwise analysis, and session merges: SortMaster.m
@@ -49,10 +49,10 @@ use only segments with 'low' variance
 	-mergeNext
 	-mergeHash
 
-##Structure of sorted data
-####SpikeSorter instance X
-####single session cluster
-####cross session cluster
+## Structure of sorted data
+#### SpikeSorter instance X
+#### single session cluster
+#### cross session cluster
 Output structure z, saved as 'All_cat.mat', with variables
 
 variables for individual spikes | description
@@ -87,7 +87,7 @@ Recording sessions | description
 z.RecId\{id\} | Identifier of recording session 'id' (yyyy-mm-dd_hh-mm-ss)
 z.LenRec(id) | Duration of recording session 'id'
 
-####cross session hash
+#### cross session hash
 Output structure z, saved as 'subject\_chXX\_hash.mat'
 
 variables for individual events | description
