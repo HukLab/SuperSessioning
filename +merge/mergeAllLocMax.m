@@ -35,7 +35,7 @@ z.Units={};%new unit Ids
 z.Jthreshold=Jthreshold;
 z.fracSpkOffset=fracSpkOffset;
 for ii=1:1
-    m0=load([obj.singleSessionFolder filesep obj.singleSessionFiles{IndList(ii)}]);
+    m0=load([obj.XFolder(obj.singleSessionFolder) filesep obj.singleSessionFiles{IndList(ii)}]);
     m=m0.m;
     z.Sessions=zeros(m.nUnits,1,'logical');
     z.Nch=m.Nch;
@@ -96,7 +96,12 @@ for ii=1:1
     for j=1:z.Nch
         ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
         if ~isempty(ChClust)
-            Raw=double(h5read([obj.FiltFolder filesep obj.FiltFiles{IndList(ii)}],'/recordings/0/data',[j,1],[1,z.LenRec(ii)])');
+%             if obj.recParameter{IndList(ii)}.readfromKWIK
+%                 Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{IndList(ii)}],'/recordings/0/data',[j,obj.recParameter{IndList(ii)}.nStart],[1,z.LenRec(ii)])');
+%             else
+%                 Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{IndList(ii)}],'/data',[j,obj.recParameter{IndList(ii)}.nStart],[1,z.LenRec(ii)])');
+%             end
+            Raw=double(h5read([obj.XFolder(obj.FiltFolder) filesep obj.FiltFiles{IndList(ii)}],'/data',[j,1],[1,z.LenRec(ii)])');
             for k=1:length(ChClust)
                 t=round(z.Times{ii}{ChClust(k)});
                 t=t(t>z.NcutPre+1);
@@ -117,7 +122,7 @@ for ii=2:nSessions
     %ii0=ii-nMerge+1;
     disp(ii)
     %append another session to the data
-    m0=load([obj.singleSessionFolder filesep obj.singleSessionFiles{IndList(ii)}]);
+    m0=load([obj.XFolder(obj.singleSessionFolder) filesep obj.singleSessionFiles{IndList(ii)}]);
     %iSess=mod(ii-1,nMerge)+1;
     m=m0.m;
     for qy=1:length(m.Channel)
@@ -293,7 +298,13 @@ for ii=2:nSessions
     for j=1:z.Nch
         ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
         if ~isempty(ChClust)
-            Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{IndList(ii)}],'/recordings/0/data',[j,obj.Filter{IndList(ii)}.nStart],[1,z.LenRec(ii)])');
+            %TODO: Channel mapping!
+            if obj.recParameter{IndList(ii)}.readfromKWIK
+                Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{IndList(ii)}],obj.recParameter{IndList(ii)}.HdfRawDataPath,[j,obj.recParameter{IndList(ii)}.nStart],[1,z.LenRec(ii)])');
+            else
+                Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{IndList(ii)}],'/data',[j,obj.recParameter{IndList(ii)}.nStart],[1,z.LenRec(ii)])');
+            end
+%             Raw=double(h5read([obj.XFolder(obj.FiltFolder) filesep obj.FiltFiles{IndList(ii)}],'/data',[j,1],[1,z.LenRec(ii)])');
             for k=1:length(ChClust)
                 t=round(z.Times{ii}{ChClust(k)});
                 t=t(t>z.NcutPre+1);

@@ -1,7 +1,7 @@
 function mergeIncLocMax(obj,Ind)
 %want to save a copy of the original cluster file, add another session,
 %save new cluster file
-z0=load([obj.mergedFolder filesep obj.mergedFile]);
+z0=load([obj.XFolder(obj.mergedFolder) filesep obj.mergedFile]);
 z=z0.z;
 
 Apenalty=hanning(2*z.Nampshift+5);
@@ -14,7 +14,7 @@ Iu=z.nUnits(1,1);
 
 ii=z.Nrec;
 %append another session to the data
-m0=load([obj.singleSessionFolder filesep obj.singleSessionFiles{Ind}]);
+m0=load([obj.XFolder(obj.singleSessionFolder) filesep obj.singleSessionFiles{Ind}]);
 %iSess=mod(ii-1,nMerge)+1;
 m=m0.m;
 for qy=1:length(m.Channel)
@@ -174,7 +174,11 @@ z.UnitAge(z.Sessions(:,ii),ii)=1;
 for j=1:z.Nch
     ChClust=find((z.Channel==j).*(z.Sessions(:,ii)));
     if ~isempty(ChClust)
-        Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{Ind}],'/recordings/0/data',[j,obj.Filter{Ind}.nStart],[1,z.LenRec(ii)])');
+        if obj.recParameter{Ind}.readfromKWIK
+            Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{Ind}],obj.recParameter{Ind}.HdfRawDataPath,[j,obj.recParameter{Ind}.nStart],[1,z.LenRec(ii)])');
+        else
+            Raw=double(h5read([obj.RawFolder filesep obj.RawFiles{Ind}],'/data',[j,obj.recParameter{Ind}.nStart],[1,z.LenRec(ii)])');
+        end
         for k=1:length(ChClust)
             t=round(z.Times{ii}{ChClust(k)});
             t=t(t>z.NcutPre+1);
@@ -197,5 +201,5 @@ for i=1:z.Nrec
         z.Times{i}{z.nUnits}=[];
     end
 end
-save([obj.mergedFolder filesep obj.mergedFile],'z','-v7.3')
+save([obj.XFolder(obj.mergedFolder) filesep obj.mergedFile],'z','-v7.3')
 end

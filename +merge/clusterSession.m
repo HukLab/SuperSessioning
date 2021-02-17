@@ -26,7 +26,7 @@ Jthreshold=0.3*log(2);
 p=load(Origin);
 g=p.g;
 spikeTimes=g.LME;
-spikeMask=convn([g.bV;g.bV(end,:)],[1;1;1]/3,'same');%floor(t/g.dt0)+1,g.Nch
+%spikeMask=convn([g.bV;g.bV(end,:)],[1;1;1]/3,'same');%floor(t/g.dt0)+1,g.Nch
 
 Ckernel=permute(hwt,[1 2 3]).*permute(hww,[2 1 3]).*permute(hwa,[2 3 1]);
 Cks=sum(Ckernel,'all');
@@ -53,13 +53,13 @@ m.Namp=g.Namp;
 m.Nwidth=g.Nwidth;
 m.Ntail=g.Ntail;
 m.noiseThr=25;
-m.noisedt=g.dt0;
+%m.noisedt=g.dt0;
 
 m.aPwr=reshape(repmat(permute(conv(m.xPwr(3:end,1),hwa,'full'),[2 3 1]),m.Ntail+2*nsth,m.Nwidth+2*nswh,1),1,[]);
 m.tWidth=g.Twidth';
 m.tTail=g.Ttail';
 
-m.noiseVar=g.bV;
+%m.noiseVar=g.bV;
 m.fracNoise=[];
 m.noiseCh=[];
 m.noiseSpikes={};
@@ -88,15 +88,15 @@ for i=1:m.Nch
     sTI=(spikeTimes{i}(:,1)>0);
     sT=max(spikeTimes{i}(sTI,2),0);
     SpkSH=spikeTimes{i}(sTI,1)';
-    SHqp=reshape(histcounts(SpkSH(1,spikeMask(floor(sT/m.noisedt)+1,i)<m.noiseThr),1:m.Namp*m.Nwidth*m.Ntail+1),m.Ntail,m.Nwidth,m.Namp)*m.HzNorm;
-    %SHqp=squeeze(g.SpkHist0(:,:,:,i))*m.HzNorm;
+    %SHqp=reshape(histcounts(SpkSH(1,spikeMask(floor(sT/m.noisedt)+1,i)<m.noiseThr),1:m.Namp*m.Nwidth*m.Ntail+1),m.Ntail,m.Nwidth,m.Namp)*m.HzNorm;
+    SHqp=squeeze(g.SpkHist0(:,:,:,i))*m.HzNorm;
     %SH=reshape(histcounts(SpkSH,1:m.Namp*m.Nwidth*m.Ntail+1),m.Ntail,m.Nwidth,m.Namp)*m.HzNorm;
     SH=squeeze(g.SpkHist(:,:,:,i))*m.HzNorm;
     %split with watershed
     [L,Lpwt,Spwt,Lspk]=merge.NspikeRad(SHqp,SH,m.Ntail,m.Nwidth,m.Namp);
     %Lmean=sum(SH.*AmpMat,'all')/sum(SH,'all');
-    %minimum firing rate, no boundary cluster.
-    Lmsk=find((Lspk>0.05).*(Lpwt(:,1)-0.5*Spwt(:,1)-Lpwt(:,2)/4>3).*...
+    %minimum firing rate, no boundary cluster.%Lspk>0.05
+    Lmsk=find((Lspk>0.2).*(Lpwt(:,1)-0.5*Spwt(:,1)-Lpwt(:,2)/4>3).*...
         (Lpwt(:,2)-0.5*Spwt(:,2)>1).*(Lpwt(:,2)+0.5*Spwt(:,2)<m.Nwidth-1).*...
         (Lpwt(:,3)-0.5*Spwt(:,3)>1).*(Lpwt(:,3)+0.5*Spwt(:,3)<m.Ntail));
     %compute relative density at cluster boundaries
@@ -130,7 +130,9 @@ for i=1:m.Nch
     SpkHash=Lunits(min(max(SpkSH(1,:),1),m.Ntail*m.Nwidth*m.Namp),1);
     %new clusters
     for k=1:Ncx
-        h=sum(spikeMask(floor(sT(SpkClust==k)/g.dt0)+1,i)>m.noiseThr)/...
+        %h=sum(spikeMask(floor(sT(SpkClust==k)/g.dt0)+1,i)>m.noiseThr)/...
+        %    size(sT(SpkClust==k),1);
+        h=1-sum(g.lowVar(floor(sT(SpkClust==k)/g.lowVarDT)+1))/...
             size(sT(SpkClust==k),1);
         if h<0.5
             Ind=Ind+1;
@@ -251,8 +253,8 @@ hold(ax1,'on')
 plot(ax1,m.pwt(m.fracBorder(:,1)>=0.6,2),m.pwt(m.fracBorder(:,1)>=0.6,1),'co')
 plot(ax1,m.pwt(m.fracBorder(:,1)<0.6,2),m.pwt(m.fracBorder(:,1)<0.6,1),'mo')
 ax1.CLim=[-4 2];
-xticks(ax1,interp1(m.tWidth,1:m.Nwidth,[0.1 0.2 0.5 1]))
-xticklabels(ax1,[0.1 0.2 0.5 1])
+xticks(ax1,interp1(m.tWidth,1:m.Nwidth,[0.1 0.2 0.5]))
+xticklabels(ax1,[0.1 0.2 0.5])
 xlabel(ax1,'width/ms')
 yticks(ax1,[0.5 32.5 64.5])
 yticklabels(ax1,m.xPwr(1:32:65))
@@ -269,9 +271,12 @@ hold(ax1,'on')
 plot(ax1,m.pwt(m.fracBorder(:,1)>=0.6,3),m.pwt(m.fracBorder(:,1)>=0.6,1),'co')
 plot(ax1,m.pwt(m.fracBorder(:,1)<0.6,3),m.pwt(m.fracBorder(:,1)<0.6,1),'mo')
 ax1.CLim=[-4 2];
-xticks(ax1,interp1(m.tTail,1:m.Ntail,[1/3 1/2 2/3 8/9]))
-xticklabels(ax1,{'2:1' '1:1' '1:2' '1:8'})
-xlabel(ax1,'symmetry')
+%xticks(ax1,interp1(m.tTail,1:m.Ntail,[1/3 1/2 2/3 8/9]))
+%xticklabels(ax1,{'2:1' '1:1' '1:2' '1:8'})
+%xlabel(ax1,'symmetry')
+xticks(ax1,interp1(m.tTail,1:m.Ntail,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85]))
+xticklabels(ax1,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85])
+xlabel(ax1,'skewness')
 %xticks(ax1,1:5:16)
 %xticklabels(ax1,round(m.tTail(1:5:16)*100)/100)
 %xlabel(ax1,'frac. of tail')
@@ -283,7 +288,7 @@ hC=colorbar(ax1,'Ticks',[-2 0 2],...
     'TickLabels',{'0.01','1','100'});
 hC.Label.String = 'Hz';
 tic; pause(2); toc;
-saveas(fig1,[Clust.plotFolderE filesep Clust.plotNameE])
+saveas(fig1,[Clust.PlotBase filesep Clust.plotFolderE filesep Clust.plotNameE])
 close(fig1)
 
 %save to file.
@@ -330,7 +335,7 @@ for i=1:m.nUnits
 %         yticks(ax1,[])
 end
 tic; pause(2); toc;
-saveas(fig1,[Clust.plotFolderC filesep Clust.plotNameC])
+saveas(fig1,[Clust.PlotBase filesep Clust.plotFolderC filesep Clust.plotNameC])
 close(fig1)
 
 %save data

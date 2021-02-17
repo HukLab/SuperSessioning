@@ -1,4 +1,4 @@
-function Filter=FilterCAR(RawFile,OutFile,Filter)
+function [Filter,recParameter]=FilterCAR(RawFile,OutFile,Filter,recParameter)
 
 %%Common noise reduction
 
@@ -36,7 +36,7 @@ function Filter=FilterCAR(RawFile,OutFile,Filter)
 %TODO: Mask for use directly with raw data
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Nch=sum(Filter.ChMask,2);
+Nch=sum(recParameter.ChMask,2);
 
 %%Parameters (to be set in this script):
 %maximum number of frames in one batch
@@ -83,58 +83,59 @@ PlotChannel=1;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %initialization (do not change without debugging)
+if recParameter.readfromKWIK && ~isfield(Filter,'pwl')
+    iGroup=recParameter.iGroup;
+    bitVolt=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_bit_volts']);
+    sRate=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_sample_rates']);
+    %time_stamps=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/timestamps']);
+    %DataSize=size(h5read(RawFile,'/recordings/' num2str(iGroup) '/data'));%probably need to find a better solution here for large files
+    %version_name=h5readatt(RawFile,'/','kwik_version');
+    %rec_method=h5readatt(RawFile,'/recordings/0','name');
+    %start_time=h5readatt(RawFile,'/recordings/0','start_time');
+    %start_sample=h5readatt(RawFile,'/recordings/0','start_sample');
+    %sample_rate=h5readatt(RawFile,'/recordings/0','sample_rate');
+    %bit_depth=h5readatt(RawFile,'/recordings/0','bit_depth');
+    
+    recParameter.bitVolt=median(double(bitVolt(ChMap(ChMask),1)));
+    recParameter.sRate=median(double(sRate(ChMap(ChMask),1)));
+    recParameter.bitVoltCh=double(bitVolt(ChMap(ChMask),1));
+    recParameter.sRateCh=double(sRate(ChMap(ChMask),1));
+    HdfDataPath=['/recordings/' num2str(iGroup) '/data'];
+    a=h5info(RawFile,HdfDataPath);
+    DataSize=a.Dataspace.Size;
+    if recParameter.tEnd==-1
+        recParameter.nEnd=double(floor(DataSize(1,2)));
+    else
+        recParameter.nEnd=double(floor(recParameter.tEnd*60*recParameter.sRate));
+    end
+    if recParameter.tStart==0
+        recParameter.nStart=1;
+    else
+        recParameter.nStart=double(floor(recParameter.tStart*60*recParameter.sRate)+1);
+    end
+    recParameter.LenRec=double(floor(DataSize(1,2)));
+    recParameter.Nch=sum(recParameter.ChMask,2);
+else
+    HdfDataPath='/data';
+end
+if ~isfield(Filter,'pwl')
+    assert(recParameter.ChMap==1:length(recParameter.ChMap),'remapping not implemented at this stage')
+    assert(all(recParameter.ChMask),'masking of channels not implemented at this stage')
+end
+h5create(OutFile,'/data',[Nch Inf],'ChunkSize',[1 2048],'Datatype','int16','FillValue',int16(0))
 
-
-bitVolt=h5read(RawFile,'/recordings/0/application_data/channel_bit_volts');
-sRate=h5read(RawFile,'/recordings/0/application_data/channel_sample_rates');
-time_stamps=h5read(RawFile,'/recordings/0/application_data/timestamps');
-a=h5info(RawFile);
-DataSize=a.Groups.Groups.Datasets.Dataspace.Size;
-%DataSize=size(h5read(RawFile,'/recordings/0/data'));
-
-version_name=h5readatt(RawFile,'/','kwik_version');
-%rec_method=h5readatt(RawFile,'/recordings/0','name');
-start_time=h5readatt(RawFile,'/recordings/0','start_time');
-start_sample=h5readatt(RawFile,'/recordings/0','start_sample');
-sample_rate=h5readatt(RawFile,'/recordings/0','sample_rate');
-bit_depth=h5readatt(RawFile,'/recordings/0','bit_depth');
-
-
-h5create(OutFile,'/recordings/0/data',[Nch Inf],'ChunkSize',[1 2048],'Datatype','int16','FillValue',int16(0))
-h5writeatt(OutFile,'/','kwik_version',version_name);
-%h5writeatt(OutFile,'/recordings/0','name',rec_method{:});
-h5writeatt(OutFile,'/recordings/0','start_time',start_time);
-h5writeatt(OutFile,'/recordings/0','start_sample',start_sample);
-h5writeatt(OutFile,'/recordings/0','sample_rate',sample_rate);
-h5writeatt(OutFile,'/recordings/0','bit_depth',bit_depth);
-h5create(OutFile,'/recordings/0/application_data/channel_bit_volts',Nch);
-h5create(OutFile,'/recordings/0/application_data/channel_sample_rates',Nch);
-h5create(OutFile,'/recordings/0/application_data/timestamps',[Nch Inf],'ChunkSize',[Nch 16]);
-h5writeatt(OutFile,'/recordings/0/application_data','is_multiSampleRate_data',0);
-
-h5write(OutFile,'/recordings/0/application_data/channel_bit_volts',bitVolt(1:Nch,:));
-h5write(OutFile,'/recordings/0/application_data/channel_sample_rates',sRate(1:Nch,1));
-h5write(OutFile,'/recordings/0/application_data/timestamps',time_stamps(1:Nch,:),[1 1],[Nch size(time_stamps,2)]);
-
-bitVolt=double(bitVolt(1:Nch,1)');
-sRate=double(sRate(1:Nch,1)');
-
-vSat=vSaturation1./bitVolt;
-vSat2=vSaturation2./bitVolt;
+vSat=vSaturation1./recParameter.bitVoltCh';
+vSat2=vSaturation2./recParameter.bitVoltCh';
 %frequency band for visualization
-fb0=floor(dtCS*f0/sRate(1,1));%bin index in spectrum
-fb1=floor(dtCS*f1/sRate(1,1));
+fb0=floor(dtCS*f0/recParameter.sRate);%bin index in spectrum
+fb1=floor(dtCS*f1/recParameter.sRate);
 
-
-
-LenRec=floor(DataSize(1,2));
-
-%assert LenRec>10e3
+%assert recParameter.LenRec>10e3
 nBatch=floor(nBatchMax/dtCS)*dtCS;
 %use reflective boundaries (warmup time)?
 %better: estimate forward+backward and correct half for each. (too much computing time?)
 %create a batch length compatible with the length of the time series
-while mod((LenRec-dt-2),nBatch)>3*dtCS
+while mod((recParameter.LenRec-dt-2),nBatch)>3*dtCS
     nBatch=nBatch-dtCS;
 end
 %assert nBatch>1001
@@ -142,7 +143,7 @@ Nfft=nBatch/dtCS;
 
 %nBatch=10000*2%set to multiple of dt (saves a lot of modulo operations
 %assert (nBatch%2)==0
-nRuns=floor((LenRec-dt-2)/nBatch);
+nRuns=floor((recParameter.LenRec-dt-2)/nBatch);
 
 
 %want to take a spatial average of differential changes
@@ -151,9 +152,9 @@ nRuns=floor((LenRec-dt-2)/nBatch);
 %do for each channel separately first (3 frames diff, 10muV)
 %compute corelation coefficients with individual traces (subtract (1/Nch of contrib. of channel itself)
 
-ARtau=mean(exp(-1000./sRate/Tau1));
-ARtau2=mean(exp(-1000./sRate/Tau2));
-%ARslow=mean(exp(-0.1/sRate));%want to prevent accumulation of numerical errors
+ARtau=exp(-1000/recParameter.sRate/Tau1);
+ARtau2=exp(-1000/recParameter.sRate/Tau2);
+%ARslow=exp(-0.1/recParameter.sRate);%want to prevent accumulation of numerical errors
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %Run
@@ -166,7 +167,7 @@ V=zeros(1,Nch);
 %compute variances (in filtered component) for weights or scaling
 %iterate
 for i=1:nRuns
-    x=double(h5read(RawFile,'/recordings/0/data',[1,(i-1)*nBatch+1],[Nch,nBatch+dt])');
+    x=double(h5read(RawFile,HdfDataPath,[1,(i-1)*nBatch+1],[Nch,nBatch+dt])');
     h=(1-exp(-abs(x(1+dt:end,:)-x(1:end-dt,:))*diag(1./vSat))).*sign(x(1+dt:end,:)-x(1:end-dt,:));
     %treat as driving noise of AR process (can assume zero mean)
     VAi=zeros(1,Nch);
@@ -197,7 +198,7 @@ Cstd=zeros(1,nRuns);
 
 %iterate
 for i=1:nRuns
-    x=double(h5read(RawFile,'/recordings/0/data',[1,(i-1)*nBatch+1],[Nch,nBatch+dt])');
+    x=double(h5read(RawFile,HdfDataPath,[1,(i-1)*nBatch+1],[Nch,nBatch+dt])');
     h=(1-exp(-abs(x(1+dt:end,:)-x(1:end-dt,:))*diag(1./vSat))).*sign(x(1+dt:end,:)-x(1:end-dt,:));
     prc=quantile(h*diag(1./Sdev),BiasPercs,2);
     xM=min(abs(prc),[],2)*0.5.*sum(sign(prc),2)*Nch;
@@ -249,7 +250,7 @@ Dstd=zeros(1,nRuns);
 
 %iterate
 %initialize with first 2*dt frames
-x=double(h5read(RawFile,'/recordings/0/data',[1,1],[Nch,dt+1])');
+x=double(h5read(RawFile,HdfDataPath,[1,1],[Nch,dt+1])');
 h=(1-exp(-abs(x(dt+1:end,:)-x(1:end-dt,:))*diag(1./vSat))).*sign(x(dt+1:end,:)-x(1:end-dt,:));
 prc=quantile(h*diag(1./Sdev),BiasPercs,2);
 xM=min(abs(prc),[],2)*0.5.*sum(sign(prc),2)*Nch;
@@ -260,7 +261,7 @@ A(1,:)=A(1,:)+h(1,:);
 %correction
 Za(end,:)=(Am(1,1)-A(1,:)./Sdev).*PCx;%need to be shifted in time below!
 for i=1:nRuns
-    x=double(h5read(RawFile,'/recordings/0/data',[1,(i-1)*nBatch+1],[Nch,nBatch+dt+1])');
+    x=double(h5read(RawFile,HdfDataPath,[1,(i-1)*nBatch+1],[Nch,nBatch+dt+1])');
     %clipped derivative (time shifted)
     h=(1-exp(-abs(x(1+dt:end,:)-x(1:end-dt,:))*diag(1./vSat))).*sign(x(1+dt:end,:)-x(1:end-dt,:));
     prc=quantile(h*diag(1./Sdev),BiasPercs,2);
@@ -387,7 +388,7 @@ if Filter.car.plotResults
     PH=zeros(200,4);
     PHdc=zeros(200*Nch,1);
     PHch=(0:(Nch-1))'*200;
-    phiN=2000*bitVolt(1,1)^2/(sum(hanning(dtCS).^2)*sRate(1,1)*(fb1-fb0));
+    phiN=2000*recParameter.bitVolt^2/(sum(hanning(dtCS).^2)*recParameter.sRate*(fb1-fb0));
 end
 Am=zeros(1,2);
 A=zeros(2,Nch);
@@ -397,7 +398,7 @@ Za=zeros(nBatch+1,Nch);
 Zb=zeros(nBatch,Nch);
 
 %initialize with first 3*dt frames
-x=double(h5read(RawFile,'/recordings/0/data',[1,1],[Nch,dt+1])');
+x=double(h5read(RawFile,HdfDataPath,[1,1],[Nch,dt+1])');
 h=(1-exp(-abs(x(dt+1,:)-x(1,:))*diag(1./vSat))).*sign(x(dt+1,:)-x(1,:));
 prc=quantile(h*diag(1./Sdev),BiasPercs);
 Am(1,1)=min(abs(prc))*0.5*sum(sign(prc))*Nch;
@@ -406,7 +407,7 @@ A(1,:)=A(1,:)+h;%may need to reshape
 %correction
 Za(end,:)=(Am(1,1)-A(1,:)./Sdev).*PCx;%need to save later
 for i=1:nRuns
-    x=double(h5read(RawFile,'/recordings/0/data',[1,(i-1)*nBatch+1],[Nch,nBatch+dt+1])');
+    x=double(h5read(RawFile,HdfDataPath,[1,(i-1)*nBatch+1],[Nch,nBatch+dt+1])');
     %clipped derivative (time shifted)
     h=(1-exp(-abs(x(dt+1:end,:)-x(1:end-dt,:))*diag(1./vSat))).*sign(x(dt+1:end,:)-x(1:end-dt,:));
     prc=quantile(h*diag(1./Sdev),BiasPercs,2);
@@ -521,33 +522,33 @@ for i=1:nRuns
         %FFCM=FFCM+Zb(1:nBatch,:)'*Zb(1:nBatch,:);
     end
     
-    h5write(OutFile,'/recordings/0/data',int16(round(Xnew)'),[1,(i-1)*nBatch+dtshift+2],[Nch,nBatch]);
+    h5write(OutFile,'/data',int16(round(Xnew)'),[1,(i-1)*nBatch+dtshift+2],[Nch,nBatch]);
     
     
     if (i==3) && Filter.car.plotResults
         %voltage traces
         %Raw
-        plot(axRawV,(1:1000)*1000/sRate(1,1),x(dtshift+2:dtshift+1001,PlotChannel)*bitVolt(1,1)+30,'k-')
+        plot(axRawV,(1:1000)*1000/recParameter.sRate,x(dtshift+2:dtshift+1001,PlotChannel)*recParameter.bitVolt+30,'k-')
         %axRawV.plot(x(dtshift+1:dtshift+1001,PlotChannel)-Za(1:1001,PlotChannel)*1./dt,'b-')
-        plot(axRawV,(1:1000)*1000/sRate(1,1),Xnew(1:1000,PlotChannel)*bitVolt(1,1)-30,'r-')
-        plot(axFilt1V,(1:1000)*1000/sRate(1,1),mean(x(dtshift+2:dtshift+1001,:),2)*bitVolt(1,1),'g')
-        plot(axFilt1V,(1:1000)*1000/sRate(1,1),Za(2:1001,PlotChannel)*bitVolt(1,1)/(dt),'b')
-        plot(axFilt1V,(1:1000)*1000/sRate(1,1),Zb(1:1000,PlotChannel)*bitVolt(1,1)/(dt),'c')
+        plot(axRawV,(1:1000)*1000/recParameter.sRate,Xnew(1:1000,PlotChannel)*recParameter.bitVolt-30,'r-')
+        plot(axFilt1V,(1:1000)*1000/recParameter.sRate,mean(x(dtshift+2:dtshift+1001,:),2)*recParameter.bitVolt,'g')
+        plot(axFilt1V,(1:1000)*1000/recParameter.sRate,Za(2:1001,PlotChannel)*recParameter.bitVolt/(dt),'b')
+        plot(axFilt1V,(1:1000)*1000/recParameter.sRate,Zb(1:1000,PlotChannel)*recParameter.bitVolt/(dt),'c')
     end
 end
 
-if i*nBatch+dtshift+1<LenRec
-    x=double(h5read(RawFile,'/recordings/0/data',[1,i*nBatch+dtshift+2],[Nch,LenRec-i*nBatch-dtshift-1])');
-    h5write(OutFile,'/recordings/0/data',int16(round(x)'),[1,i*nBatch+dtshift+2],[Nch,LenRec-i*nBatch-dtshift-1]);
+if i*nBatch+dtshift+1<recParameter.LenRec
+    x=double(h5read(RawFile,HdfDataPath,[1,i*nBatch+dtshift+2],[Nch,recParameter.LenRec-i*nBatch-dtshift-1])');
+    h5write(OutFile,'/data',int16(round(x)'),[1,i*nBatch+dtshift+2],[Nch,recParameter.LenRec-i*nBatch-dtshift-1]);
 end
 
 if Filter.car.plotResults
     %degrees of freedom
     %%%%%nu=sum(hanning(dtCS).^2).^2/sum(hanning(dtCS).^4)*2*(fb1-fb0)*nRuns*Nfft;
     %normalization factor
-    %sRate(1,1)/2000/dtCS: kHz per bin, need factor of 2 for negative symmetrical part
-    Snorm=2000*bitVolt(1,1)^2/(sum(hanning(dtCS).^2)*sRate(1,1)*nRuns*Nfft);
-    SnormT=2000*bitVolt(1,1)^2/(sum(hanning(dtCS).^2)*sRate(1,1)*(fb1-fb0));
+    %recParameter.sRate/2000/dtCS: kHz per bin, need factor of 2 for negative symmetrical part
+    Snorm=2000*recParameter.bitVolt^2/(sum(hanning(dtCS).^2)*recParameter.sRate*nRuns*Nfft);
+    SnormT=2000*recParameter.bitVolt^2/(sum(hanning(dtCS).^2)*recParameter.sRate*(fb1-fb0));
     %Perc=(1./scipy.stats.chi2.isf(array((0.005,0.995)),nu))*nu
     %Bonferroni correction
     %%%%%q=0.01/(Nch^2+Nch);
@@ -575,26 +576,26 @@ if Filter.car.plotResults
     hC.Label.String = 'power*kHz/µV^2';
     ylim(axCSc,[0.5 Nch+0.5])
     xlim(axCSc,[0.5 Nch+0.5])
-    semilogy(axPS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(PS(1:dtCS/2+1))*Snorm,'r-')
-    semilogy(axPS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(PSa(1:dtCS/2+1))*Snorm,'b-')
-    semilogy(axPS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(PSb(1:dtCS/2+1))*Snorm,'c-')
-    semilogy(axPS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(PSr(1:dtCS/2+1))*Snorm,'k-')
+    semilogy(axPS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(PS(1:dtCS/2+1))*Snorm,'r-')
+    semilogy(axPS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(PSa(1:dtCS/2+1))*Snorm,'b-')
+    semilogy(axPS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(PSb(1:dtCS/2+1))*Snorm,'c-')
+    semilogy(axPS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(PSr(1:dtCS/2+1))*Snorm,'k-')
     axPS.YScale='log';
     xlim(axPS,[100 4000])
     ylim(axPS,[1e-1 1e4])
-    semilogy(axQS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(QS(1:dtCS/2+1))*Snorm,'r-')
-    semilogy(axQS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(QSc(1:dtCS/2+1))*Snorm,'b-')
-    semilogy(axQS,(1:dtCS/2+1)*sRate(1,1)/dtCS,abs(QSr(1:dtCS/2+1))*Snorm,'k-')
+    semilogy(axQS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(QS(1:dtCS/2+1))*Snorm,'r-')
+    semilogy(axQS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(QSc(1:dtCS/2+1))*Snorm,'b-')
+    semilogy(axQS,(1:dtCS/2+1)*recParameter.sRate/dtCS,abs(QSr(1:dtCS/2+1))*Snorm,'k-')
     axQS.YScale='log';%bug in MATLAB
     xlim(axQS,[100 4000])
     ylim(axQS,[1 1e5])
-    semilogy(axPSt,(1:2000)*dtCS/sRate(1,1),TSr*SnormT,'k-')
-    semilogy(axPSt,(1:2000)*dtCS/sRate(1,1),TS*SnormT,'r-')
+    semilogy(axPSt,(1:2000)*dtCS/recParameter.sRate,TSr*SnormT,'k-')
+    semilogy(axPSt,(1:2000)*dtCS/recParameter.sRate,TS*SnormT,'r-')
     axPSt.YScale='log';
     ylim(axPSt,[2 2e3])
-    semilogy(axPStd,(1:2000)*dtCS/sRate(1,1),TQr*SnormT,'k-')
-    semilogy(axPStd,(1:2000)*dtCS/sRate(1,1),TQ*SnormT,'r-')
-    semilogy(axPStd,(1:2000)*dtCS/sRate(1,1),TQc*SnormT,'b-')
+    semilogy(axPStd,(1:2000)*dtCS/recParameter.sRate,TQr*SnormT,'k-')
+    semilogy(axPStd,(1:2000)*dtCS/recParameter.sRate,TQ*SnormT,'r-')
+    semilogy(axPStd,(1:2000)*dtCS/recParameter.sRate,TQc*SnormT,'b-')
     axPStd.YScale='log';
     ylim(axPStd,[1 5e3])
     if PowerHisto
@@ -617,7 +618,7 @@ if Filter.car.plotResults
         set(hC,'Ytick',-4:-1,'YTicklabel',{'1e-4' '1e-3' '1e-2' '1e-1'});
         hC.Label.String = 'density';
     end
-    saveas(figVT,[Filter.car.plotFolder filesep Filter.car.plotName])
+    saveas(figVT,[Filter.car.PlotBase filesep Filter.car.plotFolder filesep Filter.car.plotName])
     close(figVT)
     Filter.car.powerHist=PH;
     Filter.car.powerHistSingle=PHdc;

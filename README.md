@@ -27,8 +27,6 @@ a toolbox for cross session sorting of neural data
 1. **extract Data and recording parameter**
  	- extractDataFromKwik.m
 	- manuallyAnnotatedHdf
-[//]: # (1. (**test for potential amplifier recalibrations**))
-[//]: # (	- StepTest (TODO))
 1. **remove 60 Hz component**
 	- filter60Hz
 1. **common average referencing**
@@ -59,9 +57,6 @@ variables for individual spikes | description
 -------------|-----------------
 z.Spikes\{id\} | cluster indices of spikes for recording session 'id'
 z.Times\{id\} | time stamps  of spikes for recording session 'id'
-[//]:(TODO (?) | spike amplitudes)
-[//]:(TODO (?) | spike widths)
-[//]:(TODO (?) | spike symmetry)
 
 variables for units | description
 ------|--------------------

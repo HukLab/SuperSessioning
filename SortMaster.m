@@ -2,8 +2,12 @@
 %This script can be used (and modified, renamed, etc.) to control the sorting process
 
 %define base folder (to load instance of the sorter)
-BaseFolder='/home/huklab/data/SuperSessioning/SortFolder';
+BaseFolder='/home/huklab/XXX';
 
+%subject identifier
+subject='test';
+%where the raw data can be found
+RawFolder='/home/huklab/YYY';
 
 %% create an instance of the spike sorter
 %needs to be evaluated once, doesn't take any data, but sets default values
@@ -12,11 +16,6 @@ BaseFolder='/home/huklab/data/SuperSessioning/SortFolder';
 %        2. Folder where the raw data can be found
 %
 % comment this section once you have created an instance of the sorter!
-
-%subject identifier
-subject='test';
-%where the raw data can be found
-RawFolder='/home/huklab/data/RawCAR_Bruno/';
 
 X=SuperSessioning(BaseFolder,RawFolder,subject);
 
@@ -33,9 +32,11 @@ load([BaseFolder filesep 'spikeSorter.mat'])
 
 %% add data
 %can copy and paste from file browser (would be nice to have a timestamp in
-%the file name, e.g. XXX_2017-11-13_13-12-21.raw.kwd, otherwise need to
+%the file name, e.g. test_2017-11-13_13-12-21.raw.kwd, otherwise need to
 %adapt method to create a sortable timestamp.
-File='/home/muthmann/data/RawCAR_Bruno/b_2019-02-01_16-34-42.raw.kwd';
+
+File='/home/huklab/YYY/test_2017-11-13_13-12-21.raw.kwd';
+%%
 [~,NAME,EXT] = fileparts(File);
 FileName=[NAME EXT];
 h=regexp(NAME,'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})','tokens');
@@ -45,16 +46,24 @@ TimeStamp=datenum(str2double(h{1}),str2double(h{2}),str2double(h{3}),str2double(
 
 [X,Ind]=X.addRaw(FileName,TimeStamp);
 %returns current index of the raw file, can change some session specific
-%parameters here
+%parameters here:
+%% If needed: restrict analysis window
+%take only first 5 min of data
+X.recParameter{Ind}.tEnd=5;
 
-%%
-%take only first 2 min of data
-X.Filter{Ind}.tEnd=2;
+%% If needed: change relevant dataset (KWIK format)
+%when recording has initially been stopped and then continued. Not
+%considering concatenating those data, as usually the first/second part was not
+%recorded intentionally and likely has a lot of noise.
+X.recParameter{Ind}.iGroup=1;%(0 default, i.e. first recording bout)
 
 %% filter powerline noise and common average referencing
-X=X.filter60Hz(Ind);
-X=X.filterCAR(Ind);
-% estimate standard deviation of high-pass filtered signal
+%filter for old version (to be deprecated)
+%X=X.filter60Hz(Ind);
+%X=X.filterCAR(Ind);
+%new version
+X=filterGeneral(X,Ind);
+%% estimate standard deviation of high-pass filtered signal
 X=X.estimateStd(Ind);
 
 %save temporary backup of current sorter
@@ -62,21 +71,21 @@ save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 
 %% detect local matches with predefined templates
 X=X.blindTemplateMatching(Ind);
-
+%X=X.blindTemplateMatching(1);
 %save temporary backup of current sorter
 save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 
 %% cluster shape histograms
 X=X.sortSession(Ind);
 
-%save temporary backup of current sorter
+%save tempordilary backup of current sorter
 save([BaseFolder filesep 'spikeSorter_temp.mat'],'X','-v7.3');
 
 %% merge across sessions
 %(this can be used to merge a list of sessions at once. When already merged
 %sessions are available, comment this section and use the incremental
 %version)
-SessInd=[1 1];
+SessInd=[1 2];
 FileName=[X.subject '_All_cat.mat'];
 X=X.mergeAll(FileName,SessInd);
 

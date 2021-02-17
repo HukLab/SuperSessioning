@@ -1,5 +1,5 @@
 %% 60Hz removal
-function Filter=Filter60Hz(RawFile, OutFile, Filter)
+function [Filter,recParameter]=Filter60Hz(RawFile, OutFile, Filter, recParameter)
     %Want to get rid of powerline noise in data. Can assume that powerline
     %noise is reasonably close to 60Hz.
     
@@ -22,65 +22,54 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     %of a single channel and correlating with its trace. use only
     %a single block for that average (low amplitude expected), i.e. 36 osc.
     
-    Nch=length(Filter.ChMask);
-    Nchx=sum(Filter.ChMask,2);
-    ChMask=Filter.ChMask;
-    ChMap=Filter.ChMap;
-    iGroup=0;
+    Nch=length(recParameter.ChMask);
+    Nchx=sum(recParameter.ChMask,2);
+    ChMask=recParameter.ChMask;
+    ChMap=recParameter.ChMap;
     
-    bitVolt=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_bit_volts']);
-    sRate=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_sample_rates']);
-    time_stamps=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/timestamps']);
-    %DataSize=size(h5read(RawFile,'/recordings/' num2str(iGroup) '/data'));%probably need to find a better solution here for large files
-    a=h5info(RawFile);
-    DataSize=a.Groups.Groups(iGroup+1).Datasets.Dataspace.Size;
-    if Filter.tEnd==-1
-        Filter.nEnd=double(floor(DataSize(1,2)));
+    if recParameter.readfromKWIK
+        iGroup=recParameter.iGroup;
+        bitVolt=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_bit_volts']);
+        sRate=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/channel_sample_rates']);
+        %time_stamps=h5read(RawFile,['/recordings/' num2str(iGroup) '/application_data/timestamps']);
+        %DataSize=size(h5read(RawFile,'/recordings/' num2str(iGroup) '/data'));%probably need to find a better solution here for large files
+        %version_name=h5readatt(RawFile,'/','kwik_version');
+        %rec_method=h5readatt(RawFile,'/recordings/0','name');
+        %start_time=h5readatt(RawFile,'/recordings/0','start_time');
+        %start_sample=h5readatt(RawFile,'/recordings/0','start_sample');
+        %sample_rate=h5readatt(RawFile,'/recordings/0','sample_rate');
+        %bit_depth=h5readatt(RawFile,'/recordings/0','bit_depth');
+        
+        recParameter.bitVolt=median(double(bitVolt(ChMap(ChMask),1)));
+        recParameter.sRate=median(double(sRate(ChMap(ChMask),1)));
+        recParameter.bitVoltCh=double(bitVolt(ChMap(ChMask),1));
+        recParameter.sRateCh=double(sRate(ChMap(ChMask),1));
+        recParameter.HdfDataPath=['/recordings/' num2str(iGroup) '/data'];
     else
-        Filter.nEnd=double(floor(Filter.tEnd*60*sRate(1,1)));
+        recParameter.HdfDataPath='/data';
     end
-    if Filter.tStart==0
-        Filter.nStart=1;
+    a=h5info(RawFile,recParameter.HdfDataPath);
+    DataSize=a.Dataspace.Size;
+    if recParameter.tEnd==-1
+        recParameter.nEnd=double(floor(DataSize(1,2)));
     else
-        Filter.nStart=double(floor(Filter.tStart*60*sRate(1,1))+1);
+        recParameter.nEnd=double(floor(recParameter.tEnd*60*sRate(1,1)));
+    end
+    if recParameter.tStart==0
+        recParameter.nStart=1;
+    else
+        recParameter.nStart=double(floor(recParameter.tStart*60*sRate(1,1))+1);
     end
     
-    version_name=h5readatt(RawFile,'/','kwik_version');
-    %rec_method=h5readatt(RawFile,'/recordings/0','name');
-    start_time=h5readatt(RawFile,'/recordings/0','start_time');
-    start_sample=h5readatt(RawFile,'/recordings/0','start_sample');
-    sample_rate=h5readatt(RawFile,'/recordings/0','sample_rate');
-    bit_depth=h5readatt(RawFile,'/recordings/0','bit_depth');
-    
-    
-    h5create(OutFile,'/recordings/0/data',[Nchx Inf],'ChunkSize',[1 2048],'Datatype','int16','FillValue',int16(0))
-    h5writeatt(OutFile,'/','kwik_version',version_name);
-    %h5writeatt(OutFile,'/recordings/0','name',rec_method{:});
-    h5writeatt(OutFile,'/recordings/0','start_time',start_time);
-    h5writeatt(OutFile,'/recordings/0','start_sample',start_sample);
-    h5writeatt(OutFile,'/recordings/0','sample_rate',sample_rate);
-    h5writeatt(OutFile,'/recordings/0','bit_depth',bit_depth);
-    h5create(OutFile,'/recordings/0/application_data/channel_bit_volts',Nchx);
-    h5create(OutFile,'/recordings/0/application_data/channel_sample_rates',Nchx);
-    h5create(OutFile,'/recordings/0/application_data/timestamps',[Nch Inf],'ChunkSize',[Nch 16]);
-    h5writeatt(OutFile,'/recordings/0/application_data','is_multiSampleRate_data',0);
-    
-    h5write(OutFile,'/recordings/0/application_data/channel_bit_volts',bitVolt(ChMap(ChMask),:));
-    h5write(OutFile,'/recordings/0/application_data/channel_sample_rates',sRate(ChMap(ChMask),1));
-    h5write(OutFile,'/recordings/0/application_data/timestamps',time_stamps(1:Nch,:),[1 1],[Nch size(time_stamps,2)]);
-    
-    bitVolt=median(bitVolt(ChMap(ChMask),1));
-    sRate=median(sRate(ChMap(ChMask),1));
+    h5create(OutFile,'/data',[Nchx Inf],'ChunkSize',[1 2048],'Datatype','int16','FillValue',int16(0))
     
     %Parameters
-    Filter.LenRec=Filter.nEnd-Filter.nStart+1;
-    Filter.bitVolt=bitVolt;
-    Filter.sRate=sRate;
-    Filter.Nch=Nchx;
+    recParameter.LenRec=recParameter.nEnd;%double(floor(DataSize(1,2)));
+    recParameter.Nch=Nchx;
     
     npx=12;
-    nx=double(round(sRate*npx/60));
-    nsx=double(round(sRate/60));
+    nx=double(round(recParameter.sRate*npx/60));
+    nsx=double(round(recParameter.sRate/60));
     nsxh=floor(nsx/2);
     nT=2000;%bins for time warping (1 period)
     nTh=nT/2;
@@ -93,11 +82,11 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     npBlk=npx*npy;
     npBlkh=npx*npyh;
     
-    %sx=double(sRate/30);
+    %sx=double(recParameter.sRate/30);
     Nfft=2^14;
     fftBins=1024;
     
-    deltaNh=double(round(sRate/5000));
+    deltaNh=double(round(recParameter.sRate/5000));
     deltaN=2*deltaNh;%want this to be even
     fPrior=hanning(deltaN+1);
     fPrior=fPrior*npyh/sum(fPrior);
@@ -118,7 +107,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     nBlkX=nBlkh+deltaNh*npyh;
     nDelay=nhAll+nhSingle+1;%time lag after which two step processing finishes and data can be written   
     
-    dtPhase=double(deltaNh*npyh*nT*60/sRate(1,1));
+    dtPhase=double(deltaNh*npyh*nT*60/recParameter.sRate(1,1));
     %Variables
     
     xCut=zeros(4*nBlkX,Nchx);
@@ -148,11 +137,11 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     fXa=zeros(nDelay,1);%modulo
     %phasePrior=zeros(1,nT);
     stepTimes=zeros(1);
-    stepThr=30/bitVolt(1,1);
+    stepThr=30/recParameter.bitVolt(1,1);
     
     %warmup
     for k=10:-1:1%need to fix
-        xRaw=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,Filter.nStart+k*nBlkX-nsx],[Nch,2*nBlkX+2*nsx+1])');
+        xRaw=double(h5read(RawFile,recParameter.HdfDataPath,[1,recParameter.nStart+k*nBlkX-nsx],[Nch,2*nBlkX+2*nsx+1])');
         xRaw=xRaw(:,ChMap(ChMask));
         xCum=cumsum(xRaw,1);
         xB=(xCum(2*nsx+2:end,:)-xCum(2:end-2*nsx,:))/(4*nsx)...
@@ -196,14 +185,14 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         fracInd1{i}=1-mod(((1:4*nBlkX)'-1)*(npx*nT)/(2*nx+i-deltaNh-1),1);
     end
     
-    numRec=floor((Filter.LenRec-nsx)/nBlkX)-1;%number of iterations
+    numRec=floor((recParameter.LenRec-nsx)/nBlkX)-1;%number of iterations
     
     xRaw=zeros(nBlkX+2*nsx,nDelay+1,Nchx);%rolling
     xCum=zeros(nBlkX+1+2*nsx,1,Nchx);
     xSmth=zeros(2*nBlkX,nDelay+1,Nchx);%double resolution,rolling
     
     %first read in necessary data (nBlkAll+nBlkSingle/2 blocks)
-    xRaw0=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,Filter.nStart],[Nch,nBlkX+nsx])');
+    xRaw0=double(h5read(RawFile,recParameter.HdfDataPath,[1,recParameter.nStart],[Nch,nBlkX+nsx])');
     xRaw(1+nsx:end,end,:)=xRaw0(:,ChMap(ChMask));
     xRaw(nsx,end,:)=xRaw(nsx+1,end,:);%boundary...
     xRaw(1:nsx-1,end,:)=xRaw(nsx+1:2*nsx-1,end,:);
@@ -226,7 +215,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         
         kAll=k-nhAll;%index for which global filtered avg is becoming available
         kSingle=k-nhAll-nhSingle;%index for which single filtered avg is becoming available
-        xRaw0=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,k*nBlkX-nsx+Filter.nStart],[Nch,nBlkX+2*nsx])');
+        xRaw0=double(h5read(RawFile,recParameter.HdfDataPath,[1,k*nBlkX-nsx+recParameter.nStart],[Nch,nBlkX+2*nsx])');
         xRaw(:,end,:)=xRaw0(:,ChMap(ChMask));
         xCum(2:end,1,:)=cumsum(xRaw(:,end,:),1);
         xB=(xCum(2*nsx+2:end,1,:)-xCum(2:end-2*nsx,1,:))/(4*nsx)...
@@ -321,7 +310,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
                 end
                 cSingle=cSingle+([sProjLast;sProj(2:2:2*nBlkX-2,:)]+2*sProj(1:2:2*nBlkX-1,:)+sProj(2:2:2*nBlkX,:))/8;
                 %cSingle=cSingle+(sProj(2*nBlkX:2:end-2,:)+2*sProj(2*nBlkX+1:2:end-1,:)+sProj(2*nBlkX+2:2:end,:))/8;
-                h5write(OutFile,'/recordings/0/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay,:))...
+                h5write(OutFile,'/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay,:))...
                     -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,(k-nDelay)*nBlkX+1],[Nchx,nBlkX]);
                 %cSingle=([sProjLast;sProj(2:2:2*nBlkX-2,:)]+2*sProj(1:2:2*nBlkX-1,:)+sProj(2:2:2*nBlkX,:))/8;
                 cSingle=(sProj(2*nBlkX:2:end-2,:)+2*sProj(2*nBlkX+1:2:end-1,:)+sProj(2*nBlkX+2:2:end,:))/8; 
@@ -370,7 +359,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         
         %kAll=k-nhAll;%index for which global filtered avg is becoming available
         %kSingle=k-nhAll-nhSingle;%index for which single filtered avg is becoming available
-        xRaw0=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,k*nBlkX-nsx+Filter.nStart],[Nch,nBlkX+2*nsx])');
+        xRaw0=double(h5read(RawFile,recParameter.HdfDataPath,[1,k*nBlkX-nsx+recParameter.nStart],[Nch,nBlkX+2*nsx])');
         %test whether there are any jumps in voltage, corresponding to
         %recalibration events of the amplifiers
         skipBlk(end)=false;
@@ -569,7 +558,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
             sProj=repmat(sum(squeeze(xFilt(:,m1Single,:)).*sBase,1)./(sum(sBase.^2,1)+1),4*nBlkX,1).*sBase;
             cSingle=cSingle+([sProjLast;sProj(2:2:2*nBlkX-2,:)]+2*sProj(1:2:2*nBlkX-1,:)+sProj(2:2:2*nBlkX,:))/8;
         end
-        h5write(OutFile,'/recordings/0/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay,:))...
+        h5write(OutFile,'/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay,:))...
             -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,(k-nDelay)*nBlkX+1],[Nchx,nBlkX]);
         %for plotting
         xRawV(k,:)=std(xCutD,0,1);
@@ -619,7 +608,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         sepFrame=circshift(sepFrame,-1,1);
     end
     %treat ending
-    xTmp=double(h5read(RawFile,['/recordings/' num2str(iGroup) '/data'],[1,(numRec+1)*nBlkX+Filter.nStart],[Nch,Filter.LenRec-(numRec+1)*nBlkX])');
+    xTmp=double(h5read(RawFile,recParameter.HdfDataPath,[1,(numRec+1)*nBlkX+recParameter.nStart],[Nch,recParameter.LenRec-(numRec+1)*nBlkX])');
     for k=1:nhAll
         m1All=mod(k-1+numRec-nhAll,nDelay)+1;
         m2All=mod(k+numRec,nDelay)+1;
@@ -708,7 +697,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         end
         %sProj=repmat(sum(squeeze(xFilt(:,m1Single,:)).*sBase,1)./(sum(sBase.^2,1)+1),4*nBlkX,1).*sBase;
         %cSingle=cSingle+(sProj(2*nBlkX:2:end-2,:)+2*sProj(2*nBlkX+1:2:end-1,:)+sProj(2*nBlkX+2:2:end,:))/8;
-        h5write(OutFile,'/recordings/0/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay+k,:))...
+        h5write(OutFile,'/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay+k,:))...
         -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,(k+numRec-nDelay)*nBlkX+1],[Nchx,nBlkX]);
         %put second half projection
         if skipBlk(end-nhAll-nhSingle)
@@ -771,7 +760,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         end
         %sProj=repmat(sum(squeeze(xFilt(:,m1Single,:)).*sBase,1)./(sum(sBase.^2,1)+1),4*nBlkX,1).*sBase;
         %cSingle=cSingle+(sProj(2*nBlkX:2:end-2,:)+2*sProj(2*nBlkX+1:2:end-1,:)+sProj(2*nBlkX+2:2:end,:))/8;
-        h5write(OutFile,'/recordings/0/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay+k,:))...
+        h5write(OutFile,'/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end-nDelay+k,:))...
         -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,(k+numRec-nDelay)*nBlkX+1],[Nchx,nBlkX]);
         if skipBlk(end-nhAll-nhSingle) && ~(k==nhAll+nhSingle)
             %second half affected, cut second half, double
@@ -791,28 +780,28 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     cSingle=2*cSingle;
     m1Single=mod(nDelay+numRec,nhSingle+1)+1;
     %add past phase
-    h5write(OutFile,'/recordings/0/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end,:))...
+    h5write(OutFile,'/data',int16(round((squeeze(xRaw(nsx+1:nBlkX+nsx,end,:))...
     -squeeze(cAll(:,m1Single,:))-cSingle)')),[1,numRec*nBlkX+1],[Nchx,nBlkX]);
     newPhase=(deltaN-fXarg)*npyh;
     newC=circshift(squeeze(cAll(:,m1Single,:))+cSingle,newPhase,1);
-    if Filter.LenRec-(numRec+1)*nBlkX>nBlkX
-        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(1:nBlkX,ChMap(ChMask))-newC)'))...
+    if recParameter.LenRec-(numRec+1)*nBlkX>nBlkX
+        h5write(OutFile,'/data',int16(round((xTmp(1:nBlkX,ChMap(ChMask))-newC)'))...
             ,[1,(numRec+1)*nBlkX+1],[Nchx,nBlkX]);
         newPhase=2*(deltaN-fXarg)*npyh;
         newC=circshift(squeeze(cAll(:,m1Single,:))+cSingle,newPhase,1);
-        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(nBlkX+1:end,ChMap(ChMask))-newC(1:Filter.LenRec-(numRec+2)*nBlkX,:))'))...
-            ,[1,(numRec+2)*nBlkX+1],[Nchx,Filter.LenRec-(numRec+2)*nBlkX]);
+        h5write(OutFile,'/data',int16(round((xTmp(nBlkX+1:end,ChMap(ChMask))-newC(1:recParameter.LenRec-(numRec+2)*nBlkX,:))'))...
+            ,[1,(numRec+2)*nBlkX+1],[Nchx,recParameter.LenRec-(numRec+2)*nBlkX]);
     else
-        h5write(OutFile,'/recordings/0/data',int16(round((xTmp(:,ChMap(ChMask))-newC(1:Filter.LenRec-(numRec+1)*nBlkX,:))'))...
-        ,[1,(numRec+1)*nBlkX+1],[Nchx,Filter.LenRec-(numRec+1)*nBlkX]);
+        h5write(OutFile,'/data',int16(round((xTmp(:,ChMap(ChMask))-newC(1:recParameter.LenRec-(numRec+1)*nBlkX,:))'))...
+        ,[1,(numRec+1)*nBlkX+1],[Nchx,recParameter.LenRec-(numRec+1)*nBlkX]);
     end
     
 
     %save parameters -- see which ones necessary and add to struct (Filter)
-    Filter.pwl.Nch=Nch;
-    Filter.pwl.Nchx=Nchx;
-    Filter.pwl.ChMask=ChMask;
-    Filter.pwl.ChMap=ChMap;
+    %Filter.pwl.Nch=Nch;
+    %Filter.pwl.Nchx=Nchx;
+    %Filter.pwl.ChMask=ChMask;
+    %Filter.pwl.ChMap=ChMap;
     Filter.pwl.npx=npx;
     Filter.pwl.npy=npy;
     Filter.pwl.nT=nT;
@@ -822,27 +811,27 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
     Filter.pwl.nhAll=nhAll;
     Filter.pwl.nhSingle=nhSingle;
     Filter.pwl.deltaNh=deltaNh;
-    Filter.pwl.sRate=sRate(1,1);
-    Filter.pwl.bitVolt=bitVolt(1,1);
+    %Filter.pwl.sRate=recParameter.sRate(1,1);
+    %Filter.pwl.recParameter.bitVolt=recParameter.bitVolt(1,1);
     
-    Filter.pwl.plot.xOscAll=xOscAll'/(numRec-nDelay)*bitVolt(1,1);%mV
-    Filter.pwl.plot.xOscSgle=xOscSgle'/(numRec-nDelay)*bitVolt(1,1);%mV
-    Filter.pwl.plot.timeMinutes=(nDelay+1:numRec)'*nBlkX/sRate/60;
-    Filter.pwl.plot.rawStdev=mean(xRawV(nDelay+1:numRec,:),2)*bitVolt(1,1);
-    Filter.pwl.plot.cAllStdev=mean(xCV(nDelay+1:numRec,:),2)*bitVolt(1,1);
-    Filter.pwl.plot.cSingleStdev=mean(xSV(nDelay+1:numRec,:),2)*bitVolt(1,1);
-    Filter.pwl.plot.newStdev=mean(xNV(nDelay+1:numRec,:),2)*bitVolt(1,1);
+    Filter.pwl.plot.xOscAll=xOscAll'/(numRec-nDelay)*recParameter.bitVolt(1,1);%mV
+    Filter.pwl.plot.xOscSgle=xOscSgle'/(numRec-nDelay)*recParameter.bitVolt(1,1);%mV
+    Filter.pwl.plot.timeMinutes=(nDelay+1:numRec)'*nBlkX/recParameter.sRate/60;
+    Filter.pwl.plot.rawStdev=mean(xRawV(nDelay+1:numRec,:),2)*recParameter.bitVolt(1,1);
+    Filter.pwl.plot.cAllStdev=mean(xCV(nDelay+1:numRec,:),2)*recParameter.bitVolt(1,1);
+    Filter.pwl.plot.cSingleStdev=mean(xSV(nDelay+1:numRec,:),2)*recParameter.bitVolt(1,1);
+    Filter.pwl.plot.newStdev=mean(xNV(nDelay+1:numRec,:),2)*recParameter.bitVolt(1,1);
     Filter.pwl.plot.Phase=xPhase(nDelay+1:numRec,1)*100/(6*nT);%ms
-    Filter.pwl.plot.rawPower=abs(QSr/(numRec-nDelay)*2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft));
-    Filter.pwl.plot.cAllPower=abs(QSc/(numRec-nDelay)*2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft));
-    Filter.pwl.plot.cSinglePower=abs(QSs/(numRec-nDelay)*2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft));
-    Filter.pwl.plot.newPower=mean(abs(QS(:,nDelay+1:end)),2)*2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft);
-    Filter.pwl.plot.powerScale=(1:fftBins)*sRate(1,1)/(Nfft/2*1000);
+    Filter.pwl.plot.rawPower=abs(QSr/(numRec-nDelay)*2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft));
+    Filter.pwl.plot.cAllPower=abs(QSc/(numRec-nDelay)*2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft));
+    Filter.pwl.plot.cSinglePower=abs(QSs/(numRec-nDelay)*2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft));
+    Filter.pwl.plot.newPower=mean(abs(QS(:,nDelay+1:end)),2)*2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft);
+    Filter.pwl.plot.powerScale=(1:fftBins)*recParameter.sRate(1,1)/(Nfft/2*1000);
     Filter.pwl.plot.stepTimes=stepTimes(2:end);
     
     if Filter.pwl.plotResults
         %plotting
-        stepsPerMin=60*sRate(1,1)/nBlkX;
+        stepsPerMin=60*recParameter.sRate(1,1)/nBlkX;
         
         fig1=figure('Position',[0 0 1600 1200]);
         ax1 = axes('OuterPosition',[0   3/4 1/3 1/4]);
@@ -858,10 +847,10 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         axQSc= axes('OuterPosition',[2/4 0   1/4 1/4]);
         axQSd= axes('OuterPosition',[3/4 0   1/4 1/4]);
         
-        plot(ax1,(1:nT)*100/(6*nT),mean(xOscSgle,2)/(numRec-nDelay)*bitVolt(1,1),'c-')
+        plot(ax1,(1:nT)*100/(6*nT),mean(xOscSgle,2)/(numRec-nDelay)*recParameter.bitVolt(1,1),'c-')
         hold(ax1,'on')
-        plot(ax1,(1:nT)*100/(6*nT),mean(xOscSgle,2)*10/(numRec-nDelay)*bitVolt(1,1),'c:')
-        plot(ax1,(1:nT)*100/(6*nT),mean(xOscAll,2)/(numRec-nDelay)*bitVolt(1,1),'b-')
+        plot(ax1,(1:nT)*100/(6*nT),mean(xOscSgle,2)*10/(numRec-nDelay)*recParameter.bitVolt(1,1),'c:')
+        plot(ax1,(1:nT)*100/(6*nT),mean(xOscAll,2)/(numRec-nDelay)*recParameter.bitVolt(1,1),'b-')
         xlabel(ax1,'time/ms')
         ylabel(ax1,'µV')
         title(ax1,'average')
@@ -905,11 +894,11 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         hC.Label.String = 'explained variance';
         set(hC,'Ytick',0:1,'YTicklabel',{'0' '1'});
         
-        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/sRate/60,mean(xRawV(nDelay+1:nDelay+500,:),2)*bitVolt(1,1),'k-')%seconds
+        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/recParameter.sRate/60,mean(xRawV(nDelay+1:nDelay+500,:),2)*recParameter.bitVolt(1,1),'k-')%seconds
         hold(ax5,'on')
-        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/sRate/60,mean(xCV(nDelay+1:nDelay+500,:),2)*bitVolt(1,1),'b-')%seconds
-        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/sRate/60,mean(xSV(nDelay+1:nDelay+500,:),2)*bitVolt(1,1),'c-')%seconds
-        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/sRate/60,mean(xNV(nDelay+1:nDelay+500,:),2)*bitVolt(1,1),'r-')%seconds
+        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/recParameter.sRate/60,mean(xCV(nDelay+1:nDelay+500,:),2)*recParameter.bitVolt(1,1),'b-')%seconds
+        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/recParameter.sRate/60,mean(xSV(nDelay+1:nDelay+500,:),2)*recParameter.bitVolt(1,1),'c-')%seconds
+        plot(ax5,(nDelay+1:nDelay+500)'*nBlkX/recParameter.sRate/60,mean(xNV(nDelay+1:nDelay+500,:),2)*recParameter.bitVolt(1,1),'r-')%seconds
         xlabel(ax5,'time/min')
         %set(ax5,'Xtick',[1 2 3],'XTicklabel',{'1 min' '2 min' '3 min'});
         ylabel(ax5,'standard deviation/µV')
@@ -925,10 +914,10 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         ylabel(ax5a,'standard deviation/µV')
         xlim(ax5a,[nDelay+1 numRec]/stepsPerMin)
         
-        plot(ax6,[1 1]*Filter.pwl.plot.stepTimes(1)/(60*sRate(1,1)),[17 18],'m-')
+        plot(ax6,[1 1]*Filter.pwl.plot.stepTimes(1)/(60*recParameter.sRate(1,1)),[17 18],'m-')
         hold(ax6,'on')
         for i=2:length(Filter.pwl.plot.stepTimes)
-            plot(ax6,[1 1]*Filter.pwl.plot.stepTimes(i)/(60*sRate(1,1)),[17 18],'m-')
+            plot(ax6,[1 1]*Filter.pwl.plot.stepTimes(i)/(60*recParameter.sRate(1,1)),[17 18],'m-')
         end
         plot(ax6,Filter.pwl.plot.timeMinutes,Filter.pwl.plot.Phase,'k.','MarkerSize',1)%ok
         xlabel(ax6,'time/min')
@@ -949,7 +938,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         ylabel(axQSa,'power/µV^2/kHz')
         title(axQSa,'power spectrum')
         
-        imagesc(axQSb,[0.001 fftBins/1000]*sRate(1,1)/(Nfft/2),[1 Nchx],log10(CSx'*2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft*(numRec-nDelay))))
+        imagesc(axQSb,[0.001 fftBins/1000]*recParameter.sRate(1,1)/(Nfft/2),[1 Nchx],log10(CSx'*2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft*(numRec-nDelay))))
         hC=colorbar(axQSb,'Ticks',[2 4 6],...
             'TickLabels',{'10','100','1000'});
         hC.Label.String = 'voltage rms/µV/kHz';
@@ -957,8 +946,8 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         ylabel(axQSb,'channel id')
         title(axQSb,'power avg. (corrected)')
         
-        imagesc(axQSc,[nDelay+1 nDelay+500]*nBlkX/sRate/60,[0.001 fftBins/1000]*sRate(1,1)/(Nfft/2),log10(QS(:,nDelay+1:nDelay+500)...
-            *2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft)))
+        imagesc(axQSc,[nDelay+1 nDelay+500]*nBlkX/recParameter.sRate/60,[0.001 fftBins/1000]*recParameter.sRate(1,1)/(Nfft/2),log10(QS(:,nDelay+1:nDelay+500)...
+            *2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft)))
         hC=colorbar(axQSc,'Ticks',[2 4 6],...
             'TickLabels',{'10','100','1000'});
         hC.Label.String = 'voltage rms/µV/kHz';
@@ -966,8 +955,8 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         ylabel(axQSc,'frequency/kHz')
         title(axQSc,'power (corrected)')
         
-        imagesc(axQSd,[nDelay+1 numRec]*nBlkX/sRate/60,[0.001 fftBins/1000]*sRate(1,1)/(Nfft/2),log10(QS(:,nDelay+1:end)...
-            *2000*bitVolt(1,1)^2/(sRate(1,1)*Nfft)))
+        imagesc(axQSd,[nDelay+1 numRec]*nBlkX/recParameter.sRate/60,[0.001 fftBins/1000]*recParameter.sRate(1,1)/(Nfft/2),log10(QS(:,nDelay+1:end)...
+            *2000*recParameter.bitVolt(1,1)^2/(recParameter.sRate(1,1)*Nfft)))
         hC=colorbar(axQSd,'Ticks',[2 4 6],...
             'TickLabels',{'10','100','1000'});
         hC.Label.String = 'voltage rms/µV/kHz';
@@ -975,7 +964,7 @@ function Filter=Filter60Hz(RawFile, OutFile, Filter)
         ylabel(axQSd,'frequency/kHz')
         title(axQSd,'power (corrected)')
         
-        saveas(fig1,[Filter.pwl.plotFolder filesep Filter.pwl.plotName])
+        saveas(fig1,[Filter.pwl.PlotBase filesep Filter.pwl.plotFolder filesep Filter.pwl.plotName])
     close(fig1)
     end
     if ~Filter.pwl.returnPlotData
