@@ -190,10 +190,11 @@ m.nUnits=size(m.Channel,1);
 
 m.Nch=64;
 ChMask=1:m.Nch;
-xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
+%xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
+xMap=[4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5];
 xMap=[xMap+4 xMap];
-%yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
-yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
+yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
+%yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
 yMap=[yMap yMap];
 
 %%
@@ -221,6 +222,7 @@ for i=1:m.Nch
     ax1.CLim=[-4 2];
     xticks(ax1,[])
     yticks(ax1,[])
+    ylabel(ax1,['ch ' num2str(i)])
     ax1.YDir='normal';
 end
 %tail
@@ -253,12 +255,16 @@ hold(ax1,'on')
 plot(ax1,m.pwt(m.fracBorder(:,1)>=0.6,2),m.pwt(m.fracBorder(:,1)>=0.6,1),'co')
 plot(ax1,m.pwt(m.fracBorder(:,1)<0.6,2),m.pwt(m.fracBorder(:,1)<0.6,1),'mo')
 ax1.CLim=[-4 2];
-xticks(ax1,interp1(m.tWidth,1:m.Nwidth,[0.1 0.2 0.5]))
-xticklabels(ax1,[0.1 0.2 0.5])
+xticks(ax1,2.5:8:26.5)
+xticklabels(ax1,round(g.Twidth(3:8:27)*10)/10)
+xticks(ax1,interp1(g.Twidth,1:g.Nwidth,[0.1 0.2 0.3 0.5]))
+xticklabels(ax1,[0.1 0.2 0.3 0.5])
 xlabel(ax1,'width/ms')
-yticks(ax1,[0.5 32.5 64.5])
-yticklabels(ax1,m.xPwr(1:32:65))
-ylabel(ax1,'power/stdev')
+yticks(ax1,interp1([g.Xamp 10000],1:length(g.Xamp)+1,[2:10 15:5:50 60:10:100 125:25:200])-0.5)
+xTl={'2', '', '', '5', '', '', '', '', '10', '', '', '25', '', '', '', '', '50',...
+    '', '', '', '', '100', '', '', '', '200'};
+yticklabels(ax1,xTl)
+ylabel(ax1,'amplitude/SD')
 ax1.YDir='normal';
 hC=colorbar(ax1,'Ticks',[-2 0 2],...
     'TickLabels',{'0.01','1','100'});
@@ -271,18 +277,15 @@ hold(ax1,'on')
 plot(ax1,m.pwt(m.fracBorder(:,1)>=0.6,3),m.pwt(m.fracBorder(:,1)>=0.6,1),'co')
 plot(ax1,m.pwt(m.fracBorder(:,1)<0.6,3),m.pwt(m.fracBorder(:,1)<0.6,1),'mo')
 ax1.CLim=[-4 2];
-%xticks(ax1,interp1(m.tTail,1:m.Ntail,[1/3 1/2 2/3 8/9]))
-%xticklabels(ax1,{'2:1' '1:1' '1:2' '1:8'})
-%xlabel(ax1,'symmetry')
+
 xticks(ax1,interp1(m.tTail,1:m.Ntail,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85]))
 xticklabels(ax1,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85])
 xlabel(ax1,'skewness')
-%xticks(ax1,1:5:16)
-%xticklabels(ax1,round(m.tTail(1:5:16)*100)/100)
-%xlabel(ax1,'frac. of tail')
-yticks(ax1,[0.5 32.5 64.5])
-yticklabels(ax1,m.xPwr(1:32:65))
-ylabel(ax1,'power/stdev')
+yticks(ax1,interp1([g.Xamp 10000],1:length(g.Xamp)+1,[2:10 15:5:50 60:10:100 125:25:200])-0.5)
+xTl={'2', '', '', '5', '', '', '', '', '10', '', '', '25', '', '', '', '', '50',...
+    '', '', '', '', '100', '', '', '', '200'};
+yticklabels(ax1,xTl)
+ylabel(ax1,'amplitude/SD')
 ax1.YDir='normal';
 hC=colorbar(ax1,'Ticks',[-2 0 2],...
     'TickLabels',{'0.01','1','100'});

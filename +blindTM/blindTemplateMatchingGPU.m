@@ -65,9 +65,11 @@ g.SpkHist0=reshape(SHist0,g.Ntail,g.Nwidth,g.Namp,g.Nch);
 
 if bTM.plotResults
     ChMask=bTM.ChMap;
-    xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
+    %xMap=[3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5 4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2];
+    xMap=[4 4 4 4 3 3 3 3 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 6 6 6 6 5 5 5 5];
     xMap=[xMap+4 xMap];
-    yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
+    yMap=[12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12 11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11];
+    %yMap=[11 13 15 17 16 18 20 22 22 20 18 16 17 15 13 11 12 10 8 6 7 5 3 1 1 3 5 7 6 8 10 12];
     yMap=[yMap yMap];
 
     xPos=(0:9)*0.1+0.005;
@@ -80,6 +82,7 @@ if bTM.plotResults
         ax1.CLim=[0 5];
         xticks(ax1,[])
         yticks(ax1,[])
+        ylabel(ax1,['ch ' num2str(i)])
         ax1.YDir='normal';
     end
     %tail
@@ -116,9 +119,9 @@ if bTM.plotResults
     ax1.CLim=[0 5];
     xticks(ax1,1:5:16)
     xticklabels(ax1,round(g.Ttail(1:5:16)*100)/100)
-    xlabel(ax1,'frac. of tail')
-    %yticks(ax1,interp1(g.Xamp(13:end),1:length(g.Xamp),[3 10 25 80 300])-0.5)
-    %yticklabels(ax1,[3 10 25 80 300])
+    xticks(ax1,interp1(g.Ttail,1:g.Ntail,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85]))
+    xticklabels(ax1,[-0.85 -0.6 -0.3 0 0.3 0.6 0.85])
+    xlabel(ax1,'skewness')
     yticks(ax1,interp1([g.Xamp 10000],1:length(g.Xamp)+1,[2:10 15:5:50 60:10:100 125:25:200])-0.5)
     xTl={'2', '', '', '5', '', '', '', '', '10', '', '', '25', '', '', '', '', '50',...
         '', '', '', '', '100', '', '', '', '200'};

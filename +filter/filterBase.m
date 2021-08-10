@@ -284,8 +284,8 @@ classdef filterBase
                 StepV(1:end-i,:)=StepV(1:end-i,:) &(yDiffS(1:end-i,:)>=yDiffS(i+1:end,:));
             end
             %make sure that peaks are in region of interest
-            StepV(1:obj.nCycle/2,:,:)=false;
-            StepV(end-(obj.nCycle/2-1):end,:,:)=false;
+            StepV(1:obj.nCycle+obj.nStepSmth,:,:)=false;
+            StepV(end-(obj.nCycle-1)-obj.nStepSmth:end,:,:)=false;
             %determine which peaks can be considered outliers
             yThr=4*prctile(yDiffS(StepV,1),25);
             %all traces on a common voltage level.
