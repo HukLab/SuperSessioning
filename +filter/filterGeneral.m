@@ -16,22 +16,39 @@ function [Filter,recParameter]=filterGeneral(RawFile, OutFile, Filter, recParame
         if ~isfield(recParameter,'HdfRawDataPath')
             recParameter.HdfRawDataPath=['/recordings/' num2str(recParameter.iGroup) '/data'];
         end
+        a=h5info(RawFile,recParameter.HdfRawDataPath);
+        DataSize=a.Dataspace.Size;
+        if recParameter.tEnd==-1
+            recParameter.nEnd=double(floor(DataSize(1,2)));
+        else
+            recParameter.nEnd=double(floor(recParameter.tEnd*60*sRate(1,1)));
+        end
+        if recParameter.tStart==0
+            recParameter.nStart=1;
+        else
+            recParameter.nStart=double(floor(recParameter.tStart*60*sRate(1,1))+1);
+        end
+    elseif strcmp(recParameter.RawFormat,'rhd')
+        assert(strcmp(RawFile(end-3:end),'.rhd'))
+        RawFile0=[RawFile(1:end-4) '.rhd'];
+        RawFile=[RawFile(1:end-4) '.hdf'];
+        recParameter=convert_Intan_RHD2000_file(RawFile0,RawFile,recParameter);
     else
         recParameter.HdfRawDataPath='/data';
+        a=h5info(RawFile,recParameter.HdfRawDataPath);
+        DataSize=a.Dataspace.Size;
+        if recParameter.tEnd==-1
+            recParameter.nEnd=double(floor(DataSize(1,2)));
+        else
+            recParameter.nEnd=double(floor(recParameter.tEnd*60*sRate(1,1)));
+        end
+        if recParameter.tStart==0
+            recParameter.nStart=1;
+        else
+            recParameter.nStart=double(floor(recParameter.tStart*60*sRate(1,1))+1);
+        end
     end
-    a=h5info(RawFile,recParameter.HdfRawDataPath);
-    DataSize=a.Dataspace.Size;
-    if recParameter.tEnd==-1
-        recParameter.nEnd=double(floor(DataSize(1,2)));
-    else
-        recParameter.nEnd=double(floor(recParameter.tEnd*60*sRate(1,1)));
-    end
-    if recParameter.tStart==0
-        recParameter.nStart=1;
-    else
-        recParameter.nStart=double(floor(recParameter.tStart*60*sRate(1,1))+1);
-    end
-    
+
     h5create(OutFile,'/data',[Nchx Inf],'ChunkSize',[1 2048],'Datatype','int16','FillValue',int16(0))
     
     %Parameters

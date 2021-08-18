@@ -98,6 +98,7 @@ classdef SuperSessioning
             %Target: save in a temporary directory ('temp', default) or as filtered data ('filtered')
             %recording Parameter
             obj.defaultRecParameter.readfromKWIK=true;
+            obj.defaultRecParameter.RawFormat='rhd';
             
             %can globally change the order of electrodes here if desired
             %(better use for individual recordings, i.e. if connectors accidentally switched during a recording)

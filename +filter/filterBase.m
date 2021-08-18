@@ -685,8 +685,8 @@ classdef filterBase
             xlabel(axPhase,'time [min]')
             ylabel(axPhase,'phase [ms]')
             ylim(axPhase,[0 obj.nCycle*1000/obj.recParameter.sRate])
-            imagesc(axPhaseAligned,[squeeze(obj.plots.medPwl(:,:,1)); nan*zeros(50,size(obj.plots.medPwl,2));
-            squeeze(obj.plots.medPwl(:,:,2))])
+            imagesc(axPhaseAligned,min(max([squeeze(obj.plots.medPwl(:,:,1)); nan*zeros(50,size(obj.plots.medPwl,2));
+            squeeze(obj.plots.medPwl(:,:,2))],-500),500))
             xticks(axPhaseAligned,(0:3600*obj.nCycle:obj.recParameter.LenRec)/(60*obj.nCycle))
             xticklabels(axPhaseAligned,(0:3600*obj.nCycle:obj.recParameter.LenRec)/(60*obj.recParameter.sRate))
             yticks(axPhaseAligned,[0:5*obj.recParameter.sRate/1000:obj.nCycle ...
